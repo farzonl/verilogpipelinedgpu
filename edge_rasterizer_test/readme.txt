@@ -1,0 +1,1 @@
+This directory is to hold files related to testing the EdgeRasterizer that are not part of the main project.  It is intended to assist members working on the rasterizer portion of the project.
