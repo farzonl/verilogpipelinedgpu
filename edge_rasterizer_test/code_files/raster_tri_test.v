@@ -1,5 +1,7 @@
 // Main test module for testing basic rasterization
 // DRIVER PROGRAM FOR EdgeRasterizer.v
+
+// Jacob Pike
 module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 
 	// standard input/output declarations
@@ -25,12 +27,12 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 	
 	// test input wires for rasterization
 	// 3 vertices in screen coordinates
-	wire [15:0] v0_screen_x = 16'd100;
-	wire [15:0] v0_screen_y = 16'd25;
-	wire [15:0] v1_screen_x = 16'd125;
-	wire [15:0] v1_screen_y = 16'd75;
-	wire [15:0] v2_screen_x = 16'd75;
-	wire [15:0] v2_screen_y = 16'd75;
+	wire [15:0] v0_screen_x = 16'd100;	//h64
+	wire [15:0] v0_screen_y = 16'd25;	//h19
+	wire [15:0] v1_screen_x = 16'd103;	//h67
+	wire [15:0] v1_screen_y = 16'd29;	//h1D
+	wire [15:0] v2_screen_x = 16'd97;	//h61
+	wire [15:0] v2_screen_y = 16'd29;	//h1D
 	// 3 vertex depth values
 	wire [1:0] v0_depth = 2'b0;
 	wire [1:0] v1_depth = 2'b0;
