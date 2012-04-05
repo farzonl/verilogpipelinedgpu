@@ -19,7 +19,7 @@
 `define TRANSLATE		5'b10010
 `define SCALE			5'b10011
 `define PUSHMATRIX		5'b10100
-`define POPMATRIX		5'b10101
+`define POPMATRIX		5'b10101`
 `define STARTPRIMITIVE	5'b10110
 `define ENDPRIMITIVE	5'b10111
 `define LOADIDENTITY	5'b11000
@@ -90,6 +90,16 @@ assign op = (Instruction[31:24] == 8'b00000000) ? `ADD_D :
 			(Instruction[31:24] == 8'b11010001) ? `LOOPCOUNT :
 			`INVALID;
 
+//for these I was not sure why you were not using the instruction bit ranges for dest and src?
+//thats how I had it but I changed it up to fit how it looks like you are doing it
+assign Int_DR_Val = (op == `ADD_D || op ==`ADD_F) ? Int_SR1_Val+Int_SR2_Val : 
+					(op == `SUB_D || op ==`SUB_F) ? Int_SR1_Val-Int_SR2_Val : 
+					(op == `ADDI_D || op ==`ADDI_F) ? Int_SR1_Val+Immediate :
+					(op == `SUBI_D || op ==`SUBI_F) ? Int_SR1_Val-Immediate :
+					(op == `MOV) ? Vec_SR1_Val : 
+					(op == `MOVI || op ==`MOVI_F) ? Immediate :
+					32'hXXXXXXXX;	
+			
 assign Vec_WEnable = (op == `VMOV || op ==`VMOVI) ? 1'b1 : 1'b0;
 
 assign Vec_DR_Val = (op == `VMOV) ? Vec_SR1_Val : 
