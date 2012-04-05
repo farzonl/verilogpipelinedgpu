@@ -20,6 +20,7 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 	wire [0:0] sig_form_edges = SW[2];
 	wire [0:0] sig_pixel_loop_setup = SW[3];
 	wire [0:0] sig_rasterize_pixels = SW[4];
+	wire [0:0] sig_rasterize_write_pixel;
 	wire [0:0] sig_rasterize_done;
 	
 	// test input wires for rasterization
@@ -59,6 +60,7 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 									.in_v1_depth(v1_depth),
 									.in_v2_depth(v2_depth),
 									.in_color(color),
+									.out_sig_rasterize_write_pixel(sig_rasterize_write_pixel), 
 									.out_sig_rasterize_done(sig_rasterize_done),
 									.out_pixel_x(raster_out_pixel_x),
 									.out_pixel_y(raster_out_pixel_y),
@@ -66,10 +68,10 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 									.out_pixel_color(raster_out_pixel_color));
 	
 	// test final output assignments
-	sevenSegNum display0(.DISP(HEX0), .NUM(raster_out_pixel_x[3:0]));
-	sevenSegNum display1(.DISP(HEX1), .NUM(raster_out_pixel_x[7:4]));
-	sevenSegNum display2(.DISP(HEX2), .NUM(raster_out_pixel_x[11:8]));
-	sevenSegNum display3(.DISP(HEX3), .NUM(raster_out_pixel_x[15:12]));
+	sevenSegNum display0(.DISP(HEX0), .NUM(raster_out_pixel_y[3:0]));
+	sevenSegNum display1(.DISP(HEX1), .NUM(raster_out_pixel_y[7:4]));
+	sevenSegNum display2(.DISP(HEX2), .NUM(raster_out_pixel_x[3:0]));
+	sevenSegNum display3(.DISP(HEX3), .NUM(raster_out_pixel_x[7:4]));
 	
 	assign LEDG[1:0] = raster_out_pixel_depth;
 	
@@ -78,6 +80,7 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 	assign LEDR[2] = sig_form_edges;
 	assign LEDR[3] = sig_pixel_loop_setup;
 	assign LEDR[4] = sig_rasterize_pixels;
+	assign LEDR[8] = sig_rasterize_write_pixel;
 	assign LEDR[9] = sig_rasterize_done;
 
 endmodule

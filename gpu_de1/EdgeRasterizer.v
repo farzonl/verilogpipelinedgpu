@@ -8,10 +8,14 @@
 // Pixel screen coordinates and colors are assumed to be 16-bits
 // Depth values should be 2-bits
 
-// NOTE: STILL A WORK IS PROGRESS.
-// PROBABLY DOES NOT WORK YET.
-// HAS NOT BEEN TESTED.
-// Jacob Pike - April 3, 2012
+// NOTE: PARTIALLY TESTED.
+// Assuming appropriate control signals are used for setup, this appears to output
+// correct pixel values throughout the rasterization operation that occurs
+// once "in_sig_rasterize_pixels" (control signal) is on.
+// Despite this, there may be some issues to be aware of.  Remaining issues
+// likely may revolve around asserting appropriate signals once rasterization
+// of the entire triangle is done.  This is probably the biggest to-do item.
+// Jacob Pike - April 4, 2012
 module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 						in_sig_start_new_triangle, 				// control signal to indicate starting new triangle
 						in_sig_get_boundary_coords, 			// control signal to indicate should get bounding box coordinates of triangle
@@ -23,6 +27,7 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 						in_v2_screen_x, in_v2_screen_y,			// x, y coordinates of vertex 2
 						in_v0_depth, in_v1_depth, in_v2_depth,	// depth (z-value) for 3 vertices
 						in_color,								// color to use for triangle pixels
+						out_sig_rasterize_write_pixel,			// signal to indicate that current output pixel data is a pixel inside triangle that can be written to framebuffer
 						out_sig_rasterize_done, 				// signal to indicate rasterization of current triangle is complete (iffy on effectiveness of this actually working)
 						out_pixel_x, out_pixel_y,				// x, y coordinates of any output pixels (only pixels inside triangle)
 						out_pixel_depth,						// depth (z-value) of any output pixels (only pixels inside triangle) - NOT YET IMPLEMENTED
@@ -41,6 +46,7 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 	input [1:0] in_v0_depth, in_v1_depth, in_v2_depth;
 	input [15:0] in_color;
 	
+	output [0:0] out_sig_rasterize_write_pixel;
 	output [0:0] out_sig_rasterize_done;
 	output [15:0] out_pixel_x, out_pixel_y;
 	output [1:0] out_pixel_depth;
@@ -218,6 +224,7 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 	reg [15:0] out_pixel_x_reg, out_pixel_y_reg;
 	reg [1:0] out_pixel_depth_reg;
 	reg [15:0] out_pixel_color_reg;
+	reg [0:0] out_sig_rasterize_write_pixel;	// reg to hold value if current pixel output should be written to screen
 	reg [0:0] out_sig_rasterize_done_reg;	// this reg exists likely due to 1-cycle delay with registers
 	
 	always @(posedge clock) begin
@@ -229,15 +236,22 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 		if (in_sig_rasterize_pixels) begin
 	
 			// compute edge function values - if good, store pixel value for output
-			if ( (edge0_a * x_pixel_iter + edge0_b * y_pixel_iter + edge0_c) >= 0 && 		// edge0
-				 (edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) >= 0 && 		// edge1
-				 (edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) >= 0 ) begin 	// edge2
+			// check most significant bit to see if negative value (outside) by
+			// comparing with "large" value of 7FFF (which is all 1's except most significant bit)
+			if ( (edge0_a * x_pixel_iter + edge0_b * y_pixel_iter + edge0_c) <= 16'h7FFF && 		// edge0
+				 (edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) <= 16'h7FFF && 		// edge1
+				 (edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) <= 16'h7FFF ) begin 	// edge2
 				
 				out_pixel_x_reg <= x_pixel_iter;
 				out_pixel_y_reg <= y_pixel_iter;
 				out_pixel_depth_reg <= 2'd0;	// TODO - calculate interpolated z-value
 				out_pixel_color_reg <= start_color; 
 				
+				out_sig_rasterize_write_pixel <= 1'b1;
+				
+			end
+			else begin
+				out_sig_rasterize_write_pixel <= 1'b0;
 			end
 			
 			// increment x and y pixel iterators
@@ -262,8 +276,9 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 	// not sure about this logic to assign out_sig_rasterize_done
 	// CONFIRMED - THIS ASSIGNMENT FOR THIS SIGNAL VALUE DOES NOT WORK AS INTENDED
 	assign out_sig_rasterize_done = out_sig_rasterize_done_reg;
-					
-	assign out_pixel_x = out_pixel_x_reg;
+		
+	assign out_pixel_x = out_pixel_x_reg;			
+	//assign out_pixel_x = out_pixel_x_reg;
 	assign out_pixel_y = out_pixel_y_reg;
 	assign out_pixel_depth = out_pixel_depth_reg;
 	assign out_pixel_color = out_pixel_color_reg;
