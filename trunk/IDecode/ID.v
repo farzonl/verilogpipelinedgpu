@@ -29,10 +29,11 @@
 `define LOOPCOUNT		5'b11100
 `define INVALID			5'b11101
 
-module ID(CLK,Instruction,RESET,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out);
+module ID(CLK,Instruction,RESET,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop);
 input CLK,RESET;
-input reg[15:0] PC;
-output reg[15:0] PC_Out;
+input[15:0] PC;
+output[15:0] PC_Out;
+output Loop;
 input[31:0] Instruction;
 output reg[31:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
 output reg StartPrimitive,EndPrimitive,Draw;
@@ -43,7 +44,7 @@ wire[1:0] idx;
 wire[4:0] op;
 wire[63:0] Vec_DR_Val, Vec_SR1_Val;
 wire[5:0] Vec_DR_Num, Vec_SR1_Num;
-wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val, FP_DR_Val, FP_SR1_Val, FP_SR2_Val, LP_SR1_Val, LP_STR_Val;
+wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val, FP_DR_Val, FP_SR1_Val, FP_SR2_Val, LP_STR_Val;
 wire[3:0] Int_DR_Num, Int_SR1_Num, Int_SR2_Num, FP_DR_Num, FP_SR1_Num, FP_SR2_Num;
 wire[15:0] Immediate;
 
@@ -100,16 +101,6 @@ assign op = (Instruction[31:24] == 8'b00000000) ? `ADD_D :
 			(Instruction[31:24] == 8'b11010001) ? `LOOPCOUNT :
 			`INVALID;
 
-assign LP_Count  = (op == 'LOOPCOUNT) ? LP_SR1_Val :
-				   (op == 'STARTLOOP) ? (LP_Count[15]==1) ?LP_Count: LP_Count -1  :
-					16'hXXXX;
-					
-assign LP_Start =  (op == 'STARTLOOP) ?	PC :	
-					16'hXXXX;
-					
-assign PC_Out   =  (op == 'STARTLOOP) ?	LP_Start :	
-					16'hXXXX;
-
 assign Int_DR_Val = (op == `ADD_D) ? Int_SR1_Val + Int_SR2_Val :
 					(op == `SUB_D) ? Int_SR1_Val - Int_SR2_Val :
 					(op == `ADDI_D) ? Int_SR1_Val + Immediate :
@@ -140,6 +131,9 @@ assign VComp_WEnable = (op == `VCOMPMOV || op == `VCOMPMOVI) ? 1'b1 : 1'b0;
 assign VComp_Val = (op == `VCOMPMOV) ? Int_SR1_Val : 
 				   (op == `VCOMPMOVI) ? Immediate :
 				   16'hXXXX;
+				   
+assign PC_Out = (op == `STARTLOOP) ? LP_Start : 16'hXXXX;
+assign Loop = (op == `ENDLOOP) ? 1'b1 : 1'b0;
 
 always @(posedge CLK or posedge RESET) begin
 	if(RESET) begin
@@ -164,6 +158,12 @@ always @(posedge CLK or posedge RESET) begin
 		
 		if(op == `DRAW) Draw <= 1'b1;
 		else Draw <= 1'b0;
+		
+		if(op == `LOOPCOUNT) LP_Count <= Immediate;
+		else if(op == `STARTLOOP && LP_Count[15]!=1) LP_Count <= LP_Count - 16'd1;
+		
+		if(op == `STARTLOOP) LP_Start <= PC;
+
 	end
 end
 
