@@ -19,7 +19,7 @@
 `define TRANSLATE		5'b10010
 `define SCALE			5'b10011
 `define PUSHMATRIX		5'b10100
-`define POPMATRIX		5'b10101`
+`define POPMATRIX		5'b10101
 `define STARTPRIMITIVE	5'b10110
 `define ENDPRIMITIVE	5'b10111
 `define LOADIDENTITY	5'b11000
@@ -32,28 +32,34 @@
 module ID(CLK,Instruction,RESET,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw);
 input CLK,RESET;
 input[31:0] Instruction;
-output[31:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
-output StartPrimitive,EndPrimitive,Draw;
-output[3:0] PrimitiveType;
+output reg[31:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
+output reg StartPrimitive,EndPrimitive,Draw;
+output reg[3:0] PrimitiveType;
 
-wire Vec_WEnable,Int_WEnable,VComp_WEnable;
+wire Vec_WEnable,Int_WEnable,VComp_WEnable,FP_WEnable;
 wire[1:0] idx;
 wire[4:0] op;
 wire[63:0] Vec_DR_Val, Vec_SR1_Val;
 wire[5:0] Vec_DR_Num, Vec_SR1_Num;
-wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val;
-wire[3:0] Int_DR_Num, Int_SR1_Num, Int_SR2_Num;
+wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val, FP_DR_Val, FP_SR1_Val, FP_SR2_Val;
+wire[3:0] Int_DR_Num, Int_SR1_Num, Int_SR2_Num, FP_DR_Num, FP_SR1_Num, FP_SR2_Num;
 wire[15:0] Immediate;
-
-vector_regfile #(.REG_WIDTH(64),.REG_COUNT(64),.REG_NUM_WIDTH(6)) vector_regs(.CLK(CLK),.DR_NUM(Vec_DR_Num),.DR_VAL(Vec_DR_Val),.SRC1_NUM(Vec_SR1_Num),.SRC1_VAL(Vec_SR1_Val),.RESET(RESET),.WENABLE(Vec_WEnable),.COMP_WENABLE(VComp_WEnable),.IDX(idx),.COMP_VAL(VComp_Val));
-regfile #(.REG_WIDTH(16),.REG_COUNT(8),.REG_NUM_WIDTH(4)) int_regs(.CLK(CLK),.DR_NUM(Int_DR_Num),.DR_VAL(Int_DR_Val),.SRC1_NUM(Int_SR1_Num),.SRC1_VAL(Int_SR1_Val),.SRC2_NUM(Int_SR2_Num),.SRC2_VAL(Int_SR2_Val),.RESET(RESET),.WENABLE(Int_WEnable));
 
 assign Vec_DR_Num = Instruction[21:16];
 assign Vec_SR1_Num = Instruction[11:8];
 
-assign Int_DR_Num = Instruction[23:20];
+assign Int_DR_Num = (op == `MOV) ? Int_SR1_Num : Instruction[23:20];
 assign Int_SR1_Num = Instruction[19:16];
 assign Int_SR2_Num = Instruction[11:8];
+
+assign FP_DR_Num = Instruction[23:20];
+assign FP_SR1_Num = Int_SR1_Num;
+assign FP_SR2_Num = Int_SR2_Num;
+
+
+vector_regfile #(.REG_WIDTH(64),.REG_COUNT(64),.REG_NUM_WIDTH(6)) vector_regs(.CLK(CLK),.DR_NUM(Vec_DR_Num),.DR_VAL(Vec_DR_Val),.SRC1_NUM(Vec_SR1_Num),.SRC1_VAL(Vec_SR1_Val),.RESET(RESET),.WENABLE(Vec_WEnable),.COMP_WENABLE(VComp_WEnable),.IDX(idx),.COMP_VAL(VComp_Val));
+regfile #(.REG_WIDTH(16),.REG_COUNT(8),.REG_NUM_WIDTH(4)) int_regs(.CLK(CLK),.DR_NUM(Int_DR_Num),.DR_VAL(Int_DR_Val),.SRC1_NUM(Int_SR1_Num),.SRC1_VAL(Int_SR1_Val),.SRC2_NUM(Int_SR2_Num),.SRC2_VAL(Int_SR2_Val),.RESET(RESET),.WENABLE(Int_WEnable));
+regfile #(.REG_WIDTH(16),.REG_COUNT(8),.REG_NUM_WIDTH(4)) fp_regs(.CLK(CLK),.DR_NUM(FP_DR_Num),.DR_VAL(FP_DR_Val),.SRC1_NUM(FP_SR1_Num),.SRC1_VAL(FP_SR1_Val),.SRC2_NUM(FP_SR2_Num),.SRC2_VAL(FP_SR2_Val),.RESET(RESET),.WENABLE(FP_WEnable));
 
 assign Immediate = Instruction[15:0];
 
@@ -92,13 +98,24 @@ assign op = (Instruction[31:24] == 8'b00000000) ? `ADD_D :
 
 //for these I was not sure why you were not using the instruction bit ranges for dest and src?
 //thats how I had it but I changed it up to fit how it looks like you are doing it
-assign Int_DR_Val = (op == `ADD_D || op ==`ADD_F) ? Int_SR1_Val+Int_SR2_Val : 
-					(op == `SUB_D || op ==`SUB_F) ? Int_SR1_Val-Int_SR2_Val : 
-					(op == `ADDI_D || op ==`ADDI_F) ? Int_SR1_Val+Immediate :
-					(op == `SUBI_D || op ==`SUBI_F) ? Int_SR1_Val-Immediate :
-					(op == `MOV) ? Vec_SR1_Val : 
-					(op == `MOVI || op ==`MOVI_F) ? Immediate :
-					32'hXXXXXXXX;	
+assign Int_DR_Val = (op == `ADD_D) ? Int_SR1_Val + Int_SR2_Val :
+					(op == `SUB_D) ? Int_SR1_Val - Int_SR2_Val :
+					(op == `ADDI_D) ? Int_SR1_Val + Immediate :
+					(op == `SUBI_D) ? Int_SR1_Val - Immediate :
+					(op == `MOV) ? Int_SR2_Val :
+					(op == `MOVI) ? Immediate :
+					16'hXXXX;
+
+assign Int_WEnable = (op == `ADD_D || op == `SUB_D || op == `ADDI_D || op == `SUBI_D || op == `MOV || op == `MOVI) ? 1'b1 : 1'b0;
+
+assign FP_DR_Val = (op ==`ADD_F) ? FP_SR1_Val + FP_SR2_Val :
+				   (op ==`SUB_F) ? FP_SR1_Val - FP_SR2_Val :
+				   (op ==`ADDI_F) ? FP_SR1_Val + Immediate :
+				   (op ==`SUBI_F) ? FP_SR1_Val - Immediate :
+				   (op ==`MOVI_F) ? Immediate :
+				   16'hXXXX;
+
+assign FP_WEnable = (op == `ADD_F || op == `SUB_F || op == `ADDI_F || op == `SUBI_F || op == `MOVI_F) ? 1'b1 : 1'b0;
 			
 assign Vec_WEnable = (op == `VMOV || op ==`VMOVI) ? 1'b1 : 1'b0;
 
@@ -112,12 +129,31 @@ assign VComp_Val = (op == `VCOMPMOV) ? Int_SR1_Val :
 				   (op == `VCOMPMOVI) ? Immediate :
 				   16'hXXXX;
 
-assign Vertex = (op == `SETVERTEX) ? Vec_SR1_Val[47:16] : 32'hXXXXXXXX;
-
-assign StartPrimitive = (op == `STARTPRIMITIVE) ? 1'b1: 1'b0;
-assign PrimitiveType = (op == `STARTPRIMITIVE) ? Instruction[19:16] : 4'hX;
-assign EndPrimitive = (op == `ENDPRIMITIVE) ? 1'b1 : 1'b0;
-assign Draw = (op == `DRAW) ? 1'b1 : 1'b0;
+always @(posedge CLK or posedge RESET) begin
+	if(RESET) begin
+		Vertex <= 32'h0;
+		StartPrimitive <= 1'b0;
+		PrimitiveType <= 4'hX;
+		EndPrimitive <= 1'b0;
+		Draw <= 1'b0;
+	end
+	else begin
+		if(op == `SETVERTEX) Vertex <= Vec_SR1_Val[47:16];
+		else Vertex <= 32'hXXXXXXXX;
+		
+		if(op == `STARTPRIMITIVE) StartPrimitive <=  1'b1;
+		else StartPrimitive <= 1'b0;
+		
+		if(op == `STARTPRIMITIVE) PrimitiveType <= Instruction[19:16];
+		else PrimitiveType <= 4'hX;
+		
+		if(op == `ENDPRIMITIVE) EndPrimitive <= 1'b1;
+		else EndPrimitive <= 1'b0;
+		
+		if(op == `DRAW) Draw <= 1'b1;
+		else Draw <= 1'b0;
+	end
+end
 
 endmodule
 
