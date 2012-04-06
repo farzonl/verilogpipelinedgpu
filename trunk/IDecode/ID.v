@@ -29,19 +29,21 @@
 `define LOOPCOUNT		5'b11100
 `define INVALID			5'b11101
 
-module ID(CLK,Instruction,RESET,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw);
+module ID(CLK,Instruction,RESET,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out);
 input CLK,RESET;
+input reg[15:0] PC;
+output reg[15:0] PC_Out;
 input[31:0] Instruction;
 output reg[31:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
 output reg StartPrimitive,EndPrimitive,Draw;
 output reg[3:0] PrimitiveType;
 
-wire Vec_WEnable,Int_WEnable,VComp_WEnable,FP_WEnable;
+wire Vec_WEnable,Int_WEnable,VComp_WEnable,FP_WEnable, LP_WEnable;
 wire[1:0] idx;
 wire[4:0] op;
 wire[63:0] Vec_DR_Val, Vec_SR1_Val;
 wire[5:0] Vec_DR_Num, Vec_SR1_Num;
-wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val, FP_DR_Val, FP_SR1_Val, FP_SR2_Val;
+wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val, FP_DR_Val, FP_SR1_Val, FP_SR2_Val, LP_SR1_Val, LP_STR_Val;
 wire[3:0] Int_DR_Num, Int_SR1_Num, Int_SR2_Num, FP_DR_Num, FP_SR1_Num, FP_SR2_Num;
 wire[15:0] Immediate;
 
@@ -55,6 +57,8 @@ assign Int_SR2_Num = Instruction[11:8];
 assign FP_DR_Num = Instruction[23:20];
 assign FP_SR1_Num = Int_SR1_Num;
 assign FP_SR2_Num = Int_SR2_Num;
+
+reg [15:0] LP_Count, LP_Start;
 
 
 vector_regfile #(.REG_WIDTH(64),.REG_COUNT(64),.REG_NUM_WIDTH(6)) vector_regs(.CLK(CLK),.DR_NUM(Vec_DR_Num),.DR_VAL(Vec_DR_Val),.SRC1_NUM(Vec_SR1_Num),.SRC1_VAL(Vec_SR1_Val),.RESET(RESET),.WENABLE(Vec_WEnable),.COMP_WENABLE(VComp_WEnable),.IDX(idx),.COMP_VAL(VComp_Val));
@@ -96,8 +100,16 @@ assign op = (Instruction[31:24] == 8'b00000000) ? `ADD_D :
 			(Instruction[31:24] == 8'b11010001) ? `LOOPCOUNT :
 			`INVALID;
 
-//for these I was not sure why you were not using the instruction bit ranges for dest and src?
-//thats how I had it but I changed it up to fit how it looks like you are doing it
+assign LP_Count  = (op == 'LOOPCOUNT) ? LP_SR1_Val :
+				   (op == 'STARTLOOP) ? (LP_Count[15]==1) ?LP_Count: LP_Count -1  :
+					16'hXXXX;
+					
+assign LP_Start =  (op == 'STARTLOOP) ?	PC :	
+					16'hXXXX;
+					
+assign PC_Out   =  (op == 'STARTLOOP) ?	LP_Start :	
+					16'hXXXX;
+
 assign Int_DR_Val = (op == `ADD_D) ? Int_SR1_Val + Int_SR2_Val :
 					(op == `SUB_D) ? Int_SR1_Val - Int_SR2_Val :
 					(op == `ADDI_D) ? Int_SR1_Val + Immediate :
