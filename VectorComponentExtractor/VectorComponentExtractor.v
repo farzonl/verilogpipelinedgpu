@@ -41,7 +41,7 @@ module VectorComponentExtractor(in_vector_val, clock,
  	    compx[21:0] = ((~in_compx[14:0]+1'b1) + temp5[15:0])<<6;
  	  end
  	  else begin 
- 	    compx[21:0] = in_compx[15:0]<<6;
+ 	    compx[21:0] =(in_compx[15:0] + temp5[15:0])<<6
  	  end
  	  //subtract 5 from the to move the origin to the top of the plane
  	  if(in_compy[15]==1'b0) begin
