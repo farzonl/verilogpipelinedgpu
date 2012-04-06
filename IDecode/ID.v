@@ -49,7 +49,7 @@ wire[3:0] Int_DR_Num, Int_SR1_Num, Int_SR2_Num, FP_DR_Num, FP_SR1_Num, FP_SR2_Nu
 wire[15:0] Immediate;
 
 assign Vec_DR_Num = Instruction[21:16];
-assign Vec_SR1_Num = Instruction[11:8];
+assign Vec_SR1_Num = (op == `SETVERTEX) ? Instruction[21:16] : Instruction[11:8];
 
 assign Int_DR_Num = (op == `MOV) ? Int_SR1_Num : Instruction[23:20];
 assign Int_SR1_Num = Instruction[19:16];
@@ -174,7 +174,7 @@ always @(posedge CLK or posedge RESET) begin
 	//If stall is high, loop everything to itself to ensure no data is lost.
 	//Not sure if this is necessary for all of these, but it was late and I
 	//was tired, so I just did it for all of them.
-	else begin
+	/*else begin
 		Vertex<=Vertex;
 		NewVertex<=NewVertex;
 		StartPrimitive<=StartPrimitive;
@@ -183,7 +183,7 @@ always @(posedge CLK or posedge RESET) begin
 		Draw<=Draw;
 		LP_Start<=LP_Start;
 		LP_Count<=LP_Count;
-	end
+	end*/
 end
 
 endmodule
