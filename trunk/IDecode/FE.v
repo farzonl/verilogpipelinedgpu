@@ -1,13 +1,10 @@
-
-
-
 module FE(CLOCK_50,reset,Stall,id_instr,Loop,PC_in,PC_out);
 input CLOCK_50,reset,Loop,Stall;
 input[15:0] PC_in;
 output reg [31:0] id_instr;
 output reg [15:0] PC_out;
 
-(* ram_init_file = "FE_test.mif" *)
+(* ram_init_file = "gpu_testbench.mif" *)
 reg[31:0] mem[0:127];
 reg[31:0] mdr;
 reg[15:0] pc;
@@ -37,13 +34,6 @@ always @(posedge CLOCK_50 or posedge reset) begin
 		else PC_out <= pc;
 	
 	end
-	else begin
-		pc<=pc;
-		mdr<=mdr;
-		id_instr<=id_instr;
-		PC_out<=pc;
-	end
 end
 
 endmodule
-
