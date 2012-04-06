@@ -42,14 +42,14 @@ module VectorComponentExtractor(in_vector_val, clock,
  	    compx[21:0] = ((~in_compx[14:0]+1'b1) + temp5[15:0])<<6;
  	  end
  	  else begin 
- 	    compx[21:0] = in_compx[15:0]<<6;
+ 	    compx[21:0] = (in_compx[15:0] + temp5[15:0])<<6;
  	  end
  	  //subtract 5 from the to move the origin to the top of the plane
  	  if(in_compy[15]==1'b0) begin
- 	    interm_compy[14:0] = ~(in_compy[14:0] - temp5[14:0]) + 1;
+ 	    interm_compy[14:0] = ~(in_compy[14:0] - temp5[14:0]) + 15'b1;
  	  end
  	  else begin 
- 	    interm_compy[14:0] = ~((~in_compy[14:0] + 1'b1) - temp5[14:0]) + 1;
+ 	    interm_compy[14:0] = ~((~in_compy[14:0] + 1'b1) - temp5[14:0]) + 15'b1;
  	  end
 	  interm_compy[15] = 1'b0;
 	  //Adding these 2 shifted values is the same as mult. by 40
