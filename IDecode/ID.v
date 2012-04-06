@@ -29,14 +29,14 @@
 `define LOOPCOUNT		5'b11100
 `define INVALID			5'b11101
 
-module ID(CLK,Instruction,RESET,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop);
+module ID(CLK,Instruction,RESET,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop, NewVertex);
 input CLK,RESET;
 input[15:0] PC;
 output[15:0] PC_Out;
 output Loop;
 input[31:0] Instruction;
 output reg[31:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
-output reg StartPrimitive,EndPrimitive,Draw;
+output reg StartPrimitive,EndPrimitive,Draw,NewVertex;
 output reg[3:0] PrimitiveType;
 
 wire Vec_WEnable,Int_WEnable,VComp_WEnable,FP_WEnable, LP_WEnable;
@@ -144,8 +144,14 @@ always @(posedge CLK or posedge RESET) begin
 		Draw <= 1'b0;
 	end
 	else begin
-		if(op == `SETVERTEX) Vertex <= Vec_SR1_Val[47:16];
-		else Vertex <= 32'hXXXXXXXX;
+		if(op == `SETVERTEX) begin
+      Vertex <= Vec_SR1_Val[47:16];
+      NewVertex <= 1'b1;
+    end
+		else begin
+      Vertex <= 32'hXXXXXXXX;
+      NewVertex <= 1'b0;
+    end
 		
 		if(op == `STARTPRIMITIVE) StartPrimitive <=  1'b1;
 		else StartPrimitive <= 1'b0;
