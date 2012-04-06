@@ -29,8 +29,8 @@
 `define LOOPCOUNT		5'b11100
 `define INVALID			5'b11101
 
-module ID(CLK,Instruction,RESET,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop, NewVertex);
-input CLK,RESET;
+module ID(CLK,Instruction,RESET,Stall,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop, NewVertex);
+input CLK,RESET,Stall;
 input[15:0] PC;
 output[15:0] PC_Out;
 output Loop;
@@ -143,15 +143,15 @@ always @(posedge CLK or posedge RESET) begin
 		EndPrimitive <= 1'b0;
 		Draw <= 1'b0;
 	end
-	else begin
+	else if(~Stall)begin
 		if(op == `SETVERTEX) begin
       Vertex <= Vec_SR1_Val[47:16];
       NewVertex <= 1'b1;
-    end
+		end
 		else begin
       Vertex <= 32'hXXXXXXXX;
       NewVertex <= 1'b0;
-    end
+		end
 		
 		if(op == `STARTPRIMITIVE) StartPrimitive <=  1'b1;
 		else StartPrimitive <= 1'b0;
@@ -170,6 +170,19 @@ always @(posedge CLK or posedge RESET) begin
 		
 		if(op == `STARTLOOP) LP_Start <= PC;
 
+	end
+	//If stall is high, loop everything to itself to ensure no data is lost.
+	//Not sure if this is necessary for all of these, but it was late and I
+	//was tired, so I just did it for all of them.
+	else begin
+		Vertex<=Vertex;
+		NewVertex<=NewVertex;
+		StartPrimitive<=StartPrimitive;
+		PrimitiveType<=PrimitiveType;
+		EndPrimitive<=EndPrimitive;
+		Draw<=Draw;
+		LP_Start<=LP_Start;
+		LP_Count<=LP_Count;
 	end
 end
 
