@@ -35,7 +35,7 @@ input[15:0] PC;
 output[15:0] PC_Out;
 output Loop;
 input[31:0] Instruction;
-output reg[31:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
+output reg[63:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
 output reg StartPrimitive,EndPrimitive,Draw,NewVertex;
 output reg[3:0] PrimitiveType;
 
@@ -137,7 +137,7 @@ assign Loop = (op == `ENDLOOP) ? 1'b1 : 1'b0;
 
 always @(posedge CLK or posedge RESET) begin
 	if(RESET) begin
-		Vertex <= 32'h0;
+		Vertex <= 64'h0;
 		StartPrimitive <= 1'b0;
 		PrimitiveType <= 4'hX;
 		EndPrimitive <= 1'b0;
@@ -145,7 +145,7 @@ always @(posedge CLK or posedge RESET) begin
 	end
 	else if(~Stall)begin
 		if(op == `SETVERTEX) begin
-      Vertex <= Vec_SR1_Val[47:16];
+      Vertex <= Vec_SR1_Val;
       NewVertex <= 1'b1;
 		end
 		else begin
