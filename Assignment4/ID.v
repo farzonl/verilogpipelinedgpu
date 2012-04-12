@@ -29,15 +29,33 @@
 `define LOOPCOUNT		5'b11100
 `define INVALID			5'b11101
 
-module ID(CLK,Instruction,RESET,Stall,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop, NewVertex);
+`define IDENTITYMATRIX	255'h0001000000000000000000010000000000000000000100000000000000000001
+
+module ID(CLK,Instruction,RESET,Stall,Vertex,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop, NewVertex,NewColor);
 input CLK,RESET,Stall;
 input[15:0] PC;
 output[15:0] PC_Out;
 output Loop;
 input[31:0] Instruction;
 output reg[63:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
-output reg StartPrimitive,EndPrimitive,Draw,NewVertex;
+output reg StartPrimitive,EndPrimitive,Draw,NewVertex,NewColor;
 output reg[3:0] PrimitiveType;
+
+/*
+State Matrix =
+[ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ]
+[ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ]
+[ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ]
+[ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ]
+*/
+reg[255:0] StateMatrix;
+reg[255:0] MatrixStack[0:15];
+reg[3:0] MatrixStackPointer;
+
+initial begin
+	MatrixStackPointer = 4'b0;
+	StateMatrix = `IDENTITYMATRIX;
+end
 
 wire Vec_WEnable,Int_WEnable,VComp_WEnable,FP_WEnable, LP_WEnable;
 wire[1:0] idx;
@@ -47,9 +65,10 @@ wire[5:0] Vec_DR_Num, Vec_SR1_Num;
 wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val, FP_DR_Val, FP_SR1_Val, FP_SR2_Val, LP_STR_Val;
 wire[3:0] Int_DR_Num, Int_SR1_Num, Int_SR2_Num, FP_DR_Num, FP_SR1_Num, FP_SR2_Num;
 wire[15:0] Immediate;
+wire[15:0] Cosine_Result, Sine_Result;
 
 assign Vec_DR_Num = Instruction[21:16];
-assign Vec_SR1_Num = (op == `SETVERTEX) ? Instruction[21:16] : Instruction[11:8];
+assign Vec_SR1_Num = (op == `SETVERTEX || op == `COLOR || op == `ROTATE || op == `TRANSLATE || op == `SCALE) ? Instruction[21:16] : Instruction[11:8];
 
 assign Int_DR_Num = (op == `MOV) ? Int_SR1_Num : Instruction[23:20];
 assign Int_SR1_Num = Instruction[19:16];
@@ -65,6 +84,9 @@ reg [15:0] LP_Count, LP_Start;
 vector_regfile #(.REG_WIDTH(64),.REG_COUNT(64),.REG_NUM_WIDTH(6)) vector_regs(.CLK(CLK),.DR_NUM(Vec_DR_Num),.DR_VAL(Vec_DR_Val),.SRC1_NUM(Vec_SR1_Num),.SRC1_VAL(Vec_SR1_Val),.RESET(RESET),.WENABLE(Vec_WEnable),.COMP_WENABLE(VComp_WEnable),.IDX(idx),.COMP_VAL(VComp_Val));
 regfile #(.REG_WIDTH(16),.REG_COUNT(8),.REG_NUM_WIDTH(4)) int_regs(.CLK(CLK),.DR_NUM(Int_DR_Num),.DR_VAL(Int_DR_Val),.SRC1_NUM(Int_SR1_Num),.SRC1_VAL(Int_SR1_Val),.SRC2_NUM(Int_SR2_Num),.SRC2_VAL(Int_SR2_Val),.RESET(RESET),.WENABLE(Int_WEnable));
 regfile #(.REG_WIDTH(16),.REG_COUNT(8),.REG_NUM_WIDTH(4)) fp_regs(.CLK(CLK),.DR_NUM(FP_DR_Num),.DR_VAL(FP_DR_Val),.SRC1_NUM(FP_SR1_Num),.SRC1_VAL(FP_SR1_Val),.SRC2_NUM(FP_SR2_Num),.SRC2_VAL(FP_SR2_Val),.RESET(RESET),.WENABLE(FP_WEnable));
+
+cosine_LUT Cosine(.INVAL(Vec_SR1_Val[15:0]),.OUTVAL(Cosine_Result));
+sine_LUT Sine(.INVAL(Vec_SR1_Val[15:0]),.OUTVAL(Sine_Result));
 
 assign Immediate = Instruction[15:0];
 
@@ -145,12 +167,82 @@ always @(posedge CLK or posedge RESET) begin
 	end
 	else if(~Stall)begin
 		if(op == `SETVERTEX) begin
-      Vertex <= Vec_SR1_Val;
-      NewVertex <= 1'b1;
+		/*
+		Vertex:
+		State Matrix =
+		[ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ] [ vr1[31:16] ]
+		[ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ] [ vr1[47:32] ]
+		[ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ] [ 1          ]
+		[ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ] [ 1          ]
+		*/
+			Vertex <= { Vec_SR1_Val[63:48],
+						StateMatrix[79:64]*Vec_SR1_Val[31:16] + StateMatrix[95:80]*Vec_SR1_Val[47:32] + StateMatrix[127:112],
+						StateMatrix[15:0]*Vec_SR1_Val[31:16] + StateMatrix[31:16]*Vec_SR1_Val[47:32] + StateMatrix[63:48],
+						Vec_SR1_Val[15:0] };
+			NewVertex <= 1'b1;
 		end
 		else begin
       Vertex <= 64'hXXXXXXXXXXXXXXXX;
       NewVertex <= 1'b0;
+		end
+		
+		/*
+		Translate:
+		[ 1 0 0 sr1[31:16] ] [ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ]
+		[ 0 1 0 sr1[47:32] ] [ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ]
+		[ 0 0 1 0          ] [ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ]
+		[ 0 0 0 1          ] [ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ]
+		*/
+		
+		if(op == `TRANSLATE) begin
+			StateMatrix[63:48] <= StateMatrix[63:48] + Vec_SR1_Val[31:16];
+			StateMatrix[127:112] <= StateMatrix[127:112] + Vec_SR1_Val[47:32];
+		end
+		
+		/*
+		Scale:
+		[ sr1[31:16] 0          0 0 ] [ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ]
+		[ 0          sr1[47:32] 0 0 ] [ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ]
+		[ 0          0          1 0 ] [ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ]
+		[ 0          0          0 1 ] [ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ]
+		*/
+		
+		if(op == `SCALE) begin
+			StateMatrix[15:0] <= Vec_SR1_Val[31:16] * StateMatrix[15:0];
+			StateMatrix[31:16] <= Vec_SR1_Val[31:16] * StateMatrix[31:16];
+			StateMatrix[63:48] <= Vec_SR1_Val[31:16] * StateMatrix[63:48];
+			StateMatrix[79:64] <= Vec_SR1_Val[47:32] * StateMatrix[79:64];
+			StateMatrix[95:80] <= Vec_SR1_Val[47:32] * StateMatrix[95:80];
+			StateMatrix[127:112] <= Vec_SR1_Val[47:32] * StateMatrix[127:112];
+		end
+		
+		/*
+		Rotate:
+		[ cos(sr1[15:0]) -sin(sr1[15:0]) 0 0 ] [ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ]
+		[ sin(sr1[15:0]) cos(sr1[15:0])  0 0 ] [ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ]
+		[ 0              0               1 0 ] [ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ]
+		[ 0              0               0 1 ] [ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ]
+		*/
+		
+		if(op == `ROTATE && Vec_SR1_Val[63:48] == 16'h0080) begin
+			StateMatrix[15:0] <= Cosine_Result * StateMatrix[15:0] - Sine_Result * StateMatrix[79:64];
+			StateMatrix[31:16] <= Cosine_Result * StateMatrix[31:16] - Sine_Result * StateMatrix[95:80];
+			StateMatrix[63:48] <= Cosine_Result * StateMatrix[63:48] - Sine_Result * StateMatrix[127:112];
+			StateMatrix[79:64] <= Sine_Result * StateMatrix[15:0] + Cosine_Result * StateMatrix[79:64];
+			StateMatrix[95:80] <= Sine_Result * StateMatrix[31:16] + Cosine_Result * StateMatrix[95:80];
+			StateMatrix[127:112] <= Sine_Result * StateMatrix[63:48] + Cosine_Result * StateMatrix[127:112];
+		end
+		
+		if(op == `LOADIDENTITY) StateMatrix <= `IDENTITYMATRIX;
+		
+		if(op == `PUSHMATRIX) begin
+			MatrixStack[MatrixStackPointer] <= StateMatrix;
+			MatrixStackPointer <= MatrixStackPointer + 1'b1;
+		end
+		
+		if(op == `POPMATRIX) begin
+			StateMatrix <= MatrixStack[MatrixStackPointer - 1'b1];
+			MatrixStackPointer <= MatrixStackPointer - 1'b1;
 		end
 		
 		if(op == `STARTPRIMITIVE) StartPrimitive <=  1'b1;
@@ -171,19 +263,6 @@ always @(posedge CLK or posedge RESET) begin
 		if(op == `STARTLOOP) LP_Start <= PC;
 
 	end
-	//If stall is high, loop everything to itself to ensure no data is lost.
-	//Not sure if this is necessary for all of these, but it was late and I
-	//was tired, so I just did it for all of them.
-	/*else begin
-		Vertex<=Vertex;
-		NewVertex<=NewVertex;
-		StartPrimitive<=StartPrimitive;
-		PrimitiveType<=PrimitiveType;
-		EndPrimitive<=EndPrimitive;
-		Draw<=Draw;
-		LP_Start<=LP_Start;
-		LP_Count<=LP_Count;
-	end*/
 end
 
 endmodule
