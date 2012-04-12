@@ -23,13 +23,17 @@
 //		outputted is new, then the out_sig_rasterize_write_pixel will be asserted.  If this
 //		signal is not asserted, then the output values from this module are likely old pixel values
 //		that have been output in previous cycles.
+//		As of April 12, 2012, interpolated depth (z) values are also outputted.  If there seems to
+//		be a problem with these values later on, it may be necessary to increase the sizes of registers
+//		used to store values related to this computation.
 
-// NOTE: TESTED FOR FUNCTIONALITY NEEDED FOR ASSIGNMENT 4.  APPEARS TO PASS.
+// NOTE: TESTED FOR FUNCTIONALITY NEEDED FOR ASSIGNMENT 4/5.  APPEARS TO PASS.
 // Assuming appropriate control signals are used for setup, this appears to output
 // correct pixel values throughout the rasterization operation that occurs
 // once "in_sig_rasterize_pixels" (control signal) is on.
 
-// Jacob Pike - April 5, 2012
+// Jacob Pike - April 5, 2012 (Assignment 4 testing complete)
+// Jacob Pike - April 12, 2012 (Assignment 5 testing complete)
 module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 						in_sig_start_new_triangle, 				// control signal to indicate starting new triangle
 						in_sig_get_boundary_coords, 			// control signal to indicate should get bounding box coordinates of triangle
@@ -44,7 +48,7 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 						out_sig_rasterize_write_pixel,			// signal to indicate that current output pixel data is a pixel inside triangle that can be written to framebuffer
 						out_sig_rasterize_done, 				// signal to indicate rasterization of current triangle is complete
 						out_pixel_x, out_pixel_y,				// x, y coordinates of any output pixels (only pixels inside triangle)
-						out_pixel_depth,						// depth (z-value) of any output pixels (only pixels inside triangle) - NOT YET IMPLEMENTED
+						out_pixel_depth,						// depth (z-value) of any output pixels (only pixels inside triangle)
 						out_pixel_color);						// color of any output pixels (only pixels inside triangle)
 					
 	// standard input/output declarations
@@ -119,8 +123,28 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 	// Cycle 2 - Find Min/Max X/Y values for forming
 	// bounding box around triangle (used for looping
 	// through pixels within bounding box)
+	// 
+	// Also calculate triangle area (for later use)
+	// NOTE: This triangle area depends on vertices
+	// being in counterclockwise order (otherwise it is negative), 
+	// but this should not be an issue sends the vertices are
+	// expected to be in that order anyway.
+	// The triangle area is calculated for the purposes of
+	// z-value interpolation later.  The actual value stored is
+	// not the actual area but rather twice that (since that is
+	// needed in the formula for converting edge function values
+	// to barycentric coordinates).
+	//
+	// Finally, 16-bit z-values are also computed for the depths.  This
+	// is done to eliminate any potential problems related to math
+	// done on 2-bit z-values.
 	reg [15:0] min_x, min_y;
 	reg [15:0] max_x, max_y;
+	
+	reg [15:0] triangle_area;
+	initial triangle_area = 16'b0;
+	
+	reg [15:0] v0_depth_16, v1_depth_16, v2_depth_16;
 	
 	always @(posedge clock) begin
 		if (in_sig_get_boundary_coords) begin
@@ -185,6 +209,22 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 				max_y <= start_v2_screen_y;
 			end
 			
+			// calculate triangle area
+			// this is actually twice the area since that
+			// is what is needed for conversion-to-barycentric later
+			triangle_area <= 	(start_v0_screen_x * start_v1_screen_y) +
+								(start_v1_screen_x * start_v2_screen_y) +
+								(start_v2_screen_x * start_v0_screen_y) -
+								(start_v0_screen_x * start_v2_screen_y) -
+								(start_v1_screen_x * start_v0_screen_y) - 
+								(start_v2_screen_x * start_v1_screen_y);
+											
+			// calculate "larger" z-values as 16-bit numbers instead of 2-bit
+			// this is done to make interpolation less likely to be error prone
+			v0_depth_16 <= 16'b0 + (start_v0_depth << 7);
+			v1_depth_16 <= 16'b0 + (start_v1_depth << 7);
+			v2_depth_16 <= 16'b0 + (start_v2_depth << 7);
+			
 		end
 	end
 	
@@ -193,9 +233,15 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 	// See slide 6 of 18.opengl_rasterization2.pptx
 	// Below is a slightly optimized version with coefficients multiplied out
 	// Might want to double-check my work
+	//
+	// Also computes inverse (reciprocal) of triangle area, 
+	// which is needed for z-value interpolation
 	reg [15:0] edge0_a, edge0_b, edge0_c;
 	reg [15:0] edge1_a, edge1_b, edge1_c;
 	reg [15:0] edge2_a, edge2_b, edge2_c;
+	
+	reg [15:0] inverse_triangle_area;
+	initial inverse_triangle_area = 16'b0;
 	
 	always @(posedge clock) begin
 		if (in_sig_form_edges) begin
@@ -218,6 +264,9 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 			edge2_c <= start_v1_screen_y * start_v0_screen_x - 
 						start_v1_screen_x * start_v0_screen_y;
 						
+			// conversion to fixed-point
+			inverse_triangle_area <= (1'b1 << 7) / (triangle_area);
+						
 		end
 	end
 	
@@ -230,19 +279,21 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 	// start values for the iterators (like a for-loop setup)
 	reg [15:0] x_pixel_iter;
 	reg [15:0] y_pixel_iter;
+	
 	// Cycle 5 until end
 	// Actually loop through pixels to calculate colors.
 	// Uses edge function calculations.
 	// Values are stored in below registers before being
 	// assigned to final wires.
 	reg [15:0] out_pixel_x_reg, out_pixel_y_reg;
-	reg [1:0] out_pixel_depth_reg;
+	reg [15:0] out_pixel_depth_reg;	// 16-bit to hold higher-resolution z-value; only lowest 2 bits (after reconverting from fixed to int) sent to output wires
 	reg [15:0] out_pixel_color_reg;
 	reg [0:0] out_sig_rasterize_write_pixel_reg;	// reg to hold value if current pixel output should be written to screen
 	reg [0:0] out_sig_rasterize_done_reg;	// this reg exists likely due to 1-cycle delay with registers
 	
 	always @(posedge clock) begin
 		if (in_sig_pixel_loop_setup) begin
+			// loop iterator setup
 			x_pixel_iter <= min_x;
 			y_pixel_iter <= min_y;
 		end
@@ -258,8 +309,23 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 				
 				out_pixel_x_reg <= x_pixel_iter;
 				out_pixel_y_reg <= y_pixel_iter;
-				out_pixel_depth_reg <= 2'd0;	// TODO - calculate interpolated z-value
 				out_pixel_color_reg <= start_color; 
+				
+				// z-value interpolation
+				// this is kind of ugly, but to do it in a cleaner way would require
+				// more cycles within the rasterizer (which probably isn't worth it
+				// since we have the current rasterizer working)
+				out_pixel_depth_reg <= v0_depth_16
+										+
+										(
+										(v1_depth_16 - v0_depth_16) * 
+										((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) * inverse_triangle_area)
+										>> 7)
+										+
+										(
+										(v2_depth_16 - v0_depth_16) * 
+										((edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) * inverse_triangle_area)
+										>> 7);	
 				
 				out_sig_rasterize_write_pixel_reg <= 1'b1;
 				
@@ -299,10 +365,14 @@ module EdgeRasterizer(clock,									// clock - logic here takes multiple cycles
 	// Final output wire assignments	
 	assign out_sig_rasterize_done = out_sig_rasterize_done_reg;
 	assign out_sig_rasterize_write_pixel = out_sig_rasterize_write_pixel_reg;
-		
+	
 	assign out_pixel_x = out_pixel_x_reg;
 	assign out_pixel_y = out_pixel_y_reg;
-	assign out_pixel_depth = out_pixel_depth_reg;
+	// convert depth value to appropriate 2-bit value (convert from fixed to int and round)
+	assign out_pixel_depth = (out_pixel_depth_reg >= 16'b101000000) ? 2'b11 :	// greater than/equal to max, so output max
+							// less than max, so round up if necessary
+							((out_pixel_depth_reg[6] == 1'b1) ? (out_pixel_depth_reg[8:7] + 1'b1) : (out_pixel_depth_reg[8:7]));
+	
 	assign out_pixel_color = out_pixel_color_reg;
 					
 endmodule
