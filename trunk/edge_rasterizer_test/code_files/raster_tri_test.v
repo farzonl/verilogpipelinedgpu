@@ -34,9 +34,9 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 	wire [15:0] v2_screen_x = 16'd97;	//h61
 	wire [15:0] v2_screen_y = 16'd29;	//h1D
 	// 3 vertex depth values
-	wire [1:0] v0_depth = 2'b0;
-	wire [1:0] v1_depth = 2'b0;
-	wire [1:0] v2_depth = 2'b0;
+	wire [1:0] v0_depth = 2'b00;
+	wire [1:0] v1_depth = 2'b11;
+	wire [1:0] v2_depth = 2'b10;
 	// color
 	wire [15:0] color = 16'hFF00;	// ARGB
 	
@@ -74,6 +74,11 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 	sevenSegNum display1(.DISP(HEX1), .NUM(raster_out_pixel_y[7:4]));
 	sevenSegNum display2(.DISP(HEX2), .NUM(raster_out_pixel_x[3:0]));
 	sevenSegNum display3(.DISP(HEX3), .NUM(raster_out_pixel_x[7:4]));
+	
+	/*sevenSegNum display0(.DISP(HEX0), .NUM(raster_out_pixel_x[3:0]));
+	sevenSegNum display1(.DISP(HEX1), .NUM(raster_out_pixel_x[7:4]));
+	sevenSegNum display2(.DISP(HEX2), .NUM(raster_out_pixel_x[11:8]));
+	sevenSegNum display3(.DISP(HEX3), .NUM(raster_out_pixel_x[15:12]));*/
 	
 	assign LEDG[1:0] = raster_out_pixel_depth;
 	
