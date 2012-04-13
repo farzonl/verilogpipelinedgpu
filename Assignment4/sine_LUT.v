@@ -5,7 +5,7 @@ input[15:0] INVAL;
 output[15:0] OUTVAL;
 
 //Round INVAL to the nearest degree
-wire[15:0] INVAL_rounded = (INVAL[15] == 1 && INVAL[7] == 1'b1) ? {INVAL[15:7] - 1,7'b0} : (INVAL[15] == 0 && INVAL[7] == 1'b1) ? {INVAL[15:7] + 1,7'b0} : {INVAL[15:7],7'b0};
+wire[15:0] INVAL_rounded = (INVAL[15] == 1 && INVAL[7] == 1'b1) ? {INVAL[15:7] - 1'b1,7'b0} : (INVAL[15] == 0 && INVAL[7] == 1'b1) ? {INVAL[15:7] + 1'b1,7'b0} : {INVAL[15:7],7'b0};
 
 assign OUTVAL = (INVAL_rounded == 16'hd300) ? 16'hff80 : 
 				(INVAL_rounded == 16'hd380 || INVAL_rounded == 16'hd280) ? 16'hff80 : 
