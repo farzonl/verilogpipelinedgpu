@@ -224,7 +224,7 @@ always @(posedge CLK or posedge RESET) begin
 		[ 0              0               0 1 ] [ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ]
 		*/
 		
-		if(op == `ROTATE && Vec_SR1_Val[63:48] == 16'h0080) begin
+		if(op == `ROTATE && Vec_SR1_Val[63:48] == 16'hFF80) begin
 			StateMatrix[15:0] <= Cosine_Result * StateMatrix[15:0] - Sine_Result * StateMatrix[79:64];
 			StateMatrix[31:16] <= Cosine_Result * StateMatrix[31:16] - Sine_Result * StateMatrix[95:80];
 			StateMatrix[63:48] <= Cosine_Result * StateMatrix[63:48] - Sine_Result * StateMatrix[127:112];
