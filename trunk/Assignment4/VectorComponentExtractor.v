@@ -37,19 +37,21 @@ module VectorComponentExtractor(in_vector_val, clock,
  	  in_compx = in_vector_val[31:16];
  	  //Add 5 to input to move origin to left hand side of plane
  	  //shift by 6 to multiply by the constant scaling factor of 64
- 	  if(in_compx[15]==1'b1) begin
+ 	  /*if(in_compx[15]==1'b1) begin
  	    compx[21:0] = ({1'b1 , ~in_compx[14:0] + 1'b1} + temp5[15:0])<<6;
  	  end
  	  else begin 
  	    compx[21:0] =(in_compx[15:0] + temp5[15:0])<<6;
- 	  end
+ 	  end*/
+ 	  compx[21:0] = (in_compx[15:0] + temp5[15:0]) << 6;
  	  //subtract 5 from the to move the origin to the top of the plane
- 	  if(in_compy[15]==1'b0) begin
+ 	  /*if(in_compy[15]==1'b0) begin
  	    interm_compy[15:0] = ~(in_compy[15:0] - temp5[15:0]) + 1'b1;
  	  end
  	  else begin 
  	    interm_compy[15:0] = ~( {1'b1 , ~in_compy[14:0] + 1'b1} - temp5[15:0]) + 1'b1;
- 	  end
+ 	  end*/
+	  interm_compy[15:0] = ~(in_compy[15:0] - temp5[15:0]) + 1;
 	  //Adding these 2 shifted values is the same as mult. by 40
 	  compy = (interm_compy[15:0]<<5) + (interm_compy[15:0]<<3);
 	  
