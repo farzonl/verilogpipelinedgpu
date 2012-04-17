@@ -77,9 +77,10 @@ input iRST_N;
 
 
 	assign triangleColor = 16'h0FFF;
-	assign v0depth = 0;
-	assign v1depth = 0;
-	assign v2depth = 0;
+	// Z-BUFFER - DEPTH ASSIGNMENT MODIFIED
+	assign v0depth = DEPTH_COUNTER;
+	assign v1depth = DEPTH_COUNTER;
+	assign v2depth = DEPTH_COUNTER;
 	assign reset = !iRST_N;
 	
 	
@@ -110,6 +111,8 @@ input iRST_N;
 	initial vertexCount = 3'b000;
 
 	// Z-BUFFER REGISTERS
+	reg [1:0] DEPTH_COUNTER;	// incremented for each primitive we draw, starts at far
+	initial DEPTH_COUNTER <= 2'b11;
 	reg [17:0] oMEM_ADDR_BUFFER;
 	initial oMEM_ADDR_BUFFER <= 18'b0;
 	reg [0:0] oMEM_WRITE_BUFFER;
@@ -210,6 +213,11 @@ input iRST_N;
 				oMEM_WRITE <= oMEM_WRITE_BUFFER;
 				oGPU_DATA <= oGPU_DATA_BUFFER;
 				oMEM_READ <= writePixel;	// if we need to write a pixel next cycle, we'll need data from memory
+			end
+			
+			// misc - if done rasterizing a primitive, increment z-value - might not be correct signal to check
+			if (rastDone) begin
+				DEPTH_COUNTER <= DEPTH_COUNTER + 1'b1;
 			end
 		end
 	
