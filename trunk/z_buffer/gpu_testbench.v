@@ -217,7 +217,7 @@ input iRST_N;
 			
 			// misc - if done rasterizing a primitive, increment z-value - might not be correct signal to check
 			if (rastDone) begin
-				DEPTH_COUNTER <= DEPTH_COUNTER + 1'b1;
+				DEPTH_COUNTER <= DEPTH_COUNTER - 1'b1;
 			end
 		end
 	
