@@ -1,0 +1,73 @@
+movi.f r8 0.0f			15080000
+movi.f r9 0.0f			15090000
+loopcount 10			D100000A
+startloop				C0000000
+pushmatrix				80000000
+loadidentity			A0000000
+vcompmovi v1 1 -1.5f	234180C0
+vcompmovi v1 2 0.0f		23810000
+translate v1			5A010000
+vcompmov v0 0 r8		22000400
+vcompmovi v0 1 0.0f		23400000
+vcompmovi v0 2 0.0f		23800000
+vcompmovi v0 3 1.0f		23C00080
+rotate v0				52000000
+startprimitive 4		91040000
+vcompmovi v2 0 255		230200FF
+vcompmovi v2 1 255		234200FF
+vcompmovi v2 2 255		238200FF
+color v2				4A020000
+vcompmovi v3 1 -1.0f	23438080
+vcompmovi v3 2 1.0f		23830080
+vcompmovi v3 3 1.0f		23C30080
+setvertex v3			42030000
+vcompmovi v3 1 1.0f		23430080
+vcompmovi v3 2 1.0f		23830080
+vcompmovi v3 3 1.0f		23C30080
+setvertex v3			42030000
+vcompmovi v3 1 0.0f		23430000
+vcompmovi v3 2 -1.0f	23838080
+vcompmovi v3 3 1.0f		23C30080
+setvertex v3			42030000
+endprimitive			98000000
+addi.f r8 r8 20.0f		05440A00
+popmatrix				88000000
+pushmatrix				80000000
+loadidentity			A0000000
+vcompmovi v8 1 0.0f		23480000
+vcompmovi v8 2 0.5f		23880040
+translate v8			5A080000
+vcompmov v9 0 r9		22090900
+vcompmovi v9 1 0.0f		23490000
+vcompmovi v9 2 0.0f		23890000
+vcompmovi v9 3 -1.0f	23C98080
+rotate v9				52090000
+startprimitive 7		91070000
+vcompmovi v10 0 0		234A0000
+vcompmovi v10 1 255		238A00FF
+vcompmovi v10 2 0		23CA0000
+color v10				4A0A0000
+vcompmovi v11 1 0.0f	234B0000
+vcompmovi v11 2 0.0f	238B0000
+vcompmovi v11 3 -1.0f	23CB8080
+setvertex v11			420B0000
+vcompmovi v11 1 0.0f	234B0000
+vcompmovi v11 2 1.0f	238B0080
+vcompmovi v11 3 -1.0f	23CB8080
+setvertex v11			420B0000
+vcompmovi v11 1 1.0f	234B0080
+vcompmovi v11 2 1.0f	238B0080
+vcompmovi v11 3 -1.0f	23CB8080
+setvertex v11			420B0000
+vcompmovi v11 1 1.0f	234B0080
+vcompmovi v11 2 0.0f	238B0000
+vcompmovi v11 3 -1.0f	23CB8080
+setvertex v11			420B0000
+endprimitive			98000000
+addi.f r9 r9 20.0f		05990A00
+popmatrix				88000000
+draw					B8000000
+endloop					C8000000
+
+
+
