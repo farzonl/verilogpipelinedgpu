@@ -1,7 +1,7 @@
 `define RECTANGLE		4'd7
 
 module gpu_testbench(iGPU_DATA, oGPU_DATA, oMEM_ADDR, oMEM_READ, oMEM_WRITE,  
-	iVIDEO_ON, iCLK, iRST_N);
+	iVIDEO_ON, iCLK, iRST_N, iVGA_BLANK, oFPS);
 
 // GPU SRAM interface
 input 		 [15:0]	iGPU_DATA;
@@ -9,11 +9,12 @@ output	reg [15:0]	oGPU_DATA;
 output	reg [17:0]	oMEM_ADDR;
 output	reg 			oMEM_WRITE;
 output	reg			oMEM_READ;
+output   reg [15:0]  oFPS;
 
 input	iVIDEO_ON;
 input	iCLK;
 input iRST_N;
-//assign reset = iRST_N;
+input iVGA_BLANK;
 
 	wire reset, draw, StartPrim, EndPrim, loop, stall;
 	reg NewVertex_delayed;//, NewVertex;
@@ -28,6 +29,7 @@ input iRST_N;
 	wire [63:0] vert0Vector;
 	
 	reg rastCycle1, rastCycle2, rastCycle3, rastCycle4, rastContinue;
+	wire rast1, rast2, rast3, rast4, rastCont;
 	wire [1:0] v0depth, v1depth, v2depth, pixelDepth;
 	wire [15:0] triangleColor, loop_PC, PC;
 	wire writePixel, rastDone;
@@ -40,15 +42,21 @@ input iRST_N;
 	reg [31:0] primitive1_v0_buffer;
 	reg [31:0] primitive1_v1_buffer;
 	reg [31:0] primitive1_v2_buffer;
-  reg [31:0] primitive1_v3_buffer;
-  reg [3:0] primitive1_type;
-  reg primitive1_valid;
+   reg [31:0] primitive1_v3_buffer;
+	reg [31:0] primitive1_min;
+   reg [31:0] primitive1_max;
+   reg [3:0] primitive1_type;
+   reg primitive1_valid;
  	reg primitive1_drawn;
+	reg blanked1;
+	
   
  	reg [31:0] primitive2_v0_buffer;
 	reg [31:0] primitive2_v1_buffer;
 	reg [31:0] primitive2_v2_buffer;
   reg [31:0] primitive2_v3_buffer;
+  reg [31:0] primitive2_min;
+  reg [31:0] primitive2_max;
   reg [3:0] primitive2_type;
   reg primitive2_valid;
  	reg primitive2_drawn;
@@ -72,8 +80,12 @@ input iRST_N;
 	reg [31:0] counter;
 	reg [2:0] vertexCount;
 	reg [17:0] i;
+	reg [15:0] draw_counter;
+	reg [1:0] VS_count;
+	reg clock;
 	
 	reg latch, primRead, blankDone;
+	wire V_sync_slow;
 
 
 	assign triangleColor = 16'h0FFF;
@@ -81,6 +93,18 @@ input iRST_N;
 	assign v1depth = 0;
 	assign v2depth = 0;
 	assign reset = !iRST_N;
+	
+	/*assign rast1 = iVGA_BLANK ? rastCycle1 : 1'b0;
+	assign rast2 = iVGA_BLANK ? rastCycle2 : 1'b0;
+	assign rast3 = iVGA_BLANK ? rastCycle3 : 1'b0;
+	assign rast4 = iVGA_BLANK ? rastCycle4 : 1'b0;
+	assign rastCont = iVGA_BLANK ? rastContinue : 1'b0;*/
+	
+	assign rast1 = rastCycle1;
+	assign rast2 = rastCycle2;
+	assign rast3 = rastCycle3;
+	assign rast4 = rastCycle4;
+	assign rastCont = rastContinue;
 	
 	
 	initial primitive1_v0_buffer = 32'd0;
@@ -105,6 +129,8 @@ input iRST_N;
   initial rowInd = 0;
   initial colInd = 0;
   initial blankDone = 1;
+  initial VS_count = 0;
+  initial draw_counter = 16'd0;
   
 	
 	initial vertexCount = 3'b000;
@@ -145,7 +171,15 @@ input iRST_N;
 	initial NewVertex_delayed = 1'b0;
 	initial draw_reg = 1'b0;
 	
-	assign stall = !blankDone | rastCycle1 | rastCycle2 | rastCycle3 | rastCycle4 | rastContinue;
+	assign stall = /*!iVGA_BLANK |*/ !blankDone |  rastCycle1 | rastCycle2 | rastCycle3 | rastCycle4 | rastContinue;
+	
+	assign V_sync_slow = (VS_count==2'b11) ? 1'b1 : 1'b0;
+	
+	/*always @ (posedge iCLK) begin
+		//counter for V-sync
+		//gives a V-sync that goes high every 4th v-sync
+		clock <= clock + 1'b1;
+	end*/
 	
 				 
 	always @ (posedge iCLK or posedge reset) begin
@@ -161,6 +195,9 @@ input iRST_N;
 	end else begin
 	
 		//Set drawn and valid flags to 0. This will be reset later in the code if needed.
+		if (!iVIDEO_ON) begin 
+
+		//if (iVGA_BLANK) begin
 
 		if(StartPrim==1'b1) begin 
 		  primitive2_drawn <= 1'b0;
@@ -171,30 +208,48 @@ input iRST_N;
 		  current_prim <= current_prim + 1'b1;
 		  if(current_prim==1'b0) primitive1_type <= PrimType;
 		  else primitive2_type <= PrimType;
-    end
+		end
 	  
 	  primType_delayed <= PrimType;
-	if (!iVIDEO_ON) begin
-		if(blankDone==1'b0) begin
-			oMEM_ADDR <= rowInd*640 + colInd;
-			oMEM_WRITE <= 1'b1;
-			oMEM_READ <= 1'b0;
-			oGPU_DATA <= {4'h0, 4'h0, 4'h0, 4'h0};
-			//if(draw==1'b1) draw_reg <= 1'b1;
-		end else if(blankDone==1'b1) begin
-			oMEM_ADDR <= pixelYout*18'd640 + pixelXout;
-			oMEM_WRITE <= writePixel;
-			oGPU_DATA <= pixelColor;//16'hFFFF;
-			oMEM_READ <= 1'b0;
-		end
+	  
+	  
+		//Only do anything during vblank. Otherwise, screen will tear.
+		
+		draw_counter <= draw_counter + 1'b1;
+		//if(iVGA_BLANK) begin
+			if(blankDone==1'b0) begin
+				oMEM_ADDR <= rowInd*640 + colInd;
+				oMEM_WRITE <= 1'b1;
+				oMEM_READ <= 1'b0;
+				oGPU_DATA <= {4'hC, 4'h0, 4'h0, 4'h0};
+				//if(draw==1'b1) draw_reg <= 1'b1;
+			end
+			else begin
+				oMEM_ADDR <= pixelYout*18'd640 + pixelXout;
+				oMEM_WRITE <= writePixel;
+				oGPU_DATA <= pixelColor;//16'hFFFF;
+				oMEM_READ <= 1'b0;
+			end
+		//end
 	
+		if(!blanked1) begin
+			if(rowInd==primitive1_max[31:16] && colInd==primitive1_max[15:0]) blanked1 <=1'b1;
+			else blanked1 <= 1'b0;
+		end else
+		if(rowInd==primitive2_max[31:16] && colInd==primitive2_max[15:0]) blankDone <=1'b1;
+		else blankDone <= 1'b0;
+		
+		
 		if(draw==1'b1) begin 
+			//oFPS <= 32'd25200000/draw_counter;
 			draw_reg <=1'b1;
 			blankDone <= 1'b0;
-		end
-		if(rowInd==399 && colInd==639) blankDone <=1'b1;
-		else if (!draw & (((primitive2_drawn & primitive2_valid) | !primitive2_valid) &
-					 ((primitive1_drawn & primitive1_valid) | !primitive1_valid))) draw_reg<=0;
+			//reset draw counter;
+			draw_counter <= 16'd0;
+		end else if (((primitive2_drawn & primitive2_valid) | !primitive2_valid) &
+					 ((primitive1_drawn & primitive1_valid) | !primitive1_valid)) draw_reg<=0;
+					 
+					 
 		counter <= counter+1;
 		
 		//delay signal for 1 cycle to allow Converter to do its thing
@@ -209,47 +264,80 @@ input iRST_N;
 		  if(primitive1_valid==0) begin
 		
 				if(vertexCount==0) begin
-					primitive1_v0_buffer[31:16]<=v0x;
-					primitive1_v0_buffer[15:0]<=v0y;
+					primitive1_min <= {v0x, v0y};
+					primitive1_max <= {v0x, v0y};
+					primitive1_v0_buffer <= {v0x, v0y};
 					vertexCount <= vertexCount + 1'b1;
 				end else
 				if(vertexCount==1) begin
-					primitive1_v1_buffer[31:16]<=v0x;
-					primitive1_v1_buffer[15:0]<=v0y;
+					if(v0x<primitive1_min[31:16]) primitive1_min[31:16] <= v0x;
+					else if(v0x>primitive1_max[31:16]) primitive1_max[31:16] <= v0x;
+					if(v0y<primitive1_min[15:0]) primitive1_min[15:0] <= v0y;
+					else if(v0y>primitive1_max[15:0]) primitive1_max[15:0] <= v0y;
+					
+					primitive1_v1_buffer <= {v0x, v0y};
 					vertexCount <= vertexCount + 1'b1;
 				end else
 				if(vertexCount==2) begin
+					if(v0x<primitive1_min[31:16]) primitive1_min[31:16] <= v0x;
+					else if(v0x>primitive1_max[31:16]) primitive1_max[31:16] <= v0x;
+					if(v0y<primitive1_min[15:0]) primitive1_min[15:0] <= v0y;
+					else if(v0y>primitive1_max[15:0]) primitive1_max[15:0] <= v0y;
+					
 					primitive1_v2_buffer[31:16]<=v0x;
 					primitive1_v2_buffer[15:0]<=v0y;
 					vertexCount <= vertexCount + 1'b1;
 					primitive1_valid <= 1'b1;
-				end else if(vertexCount==3 && primitive1_type == `RECTANGLE) begin
-					primitive1_v3_buffer[31:16]<=v0x;
-					primitive1_v3_buffer[15:0]<=v0y;
+				end else if(vertexCount==3)begin 
+					if(v0x<primitive1_min[31:16]) primitive1_min[31:16] <= v0x;
+					else if(v0x>primitive1_max[31:16]) primitive1_max[31:16] <= v0x;
+					if(v0y<primitive1_min[15:0]) primitive1_min[15:0] <= v0y;
+					else if(v0y>primitive1_max[15:0]) primitive1_max[15:0] <= v0y;
+					
+				  if(primitive1_type == `RECTANGLE) begin
+					  primitive1_v3_buffer[31:16]<=v0x;
+					  primitive1_v3_buffer[15:0]<=v0y;
+				  end
 				  vertexCount <= 3'd0;
-				end else if(vertexCount==3) begin 
-					vertexCount <= 3'd0;
+				  primitive1_valid <= 1'b1;
 				end
   			
 			end else if (primitive2_valid==0) begin
 
 			  
 				if(vertexCount==0) begin
+					primitive2_min <= {v0x, v0y};
+					primitive2_max <= {v0x, v0y};					
 					primitive2_v1_buffer[31:16]<=v0x;
 					primitive2_v1_buffer[15:0]<=v0y;
 					vertexCount <= vertexCount + 1'b1;
 				end
 				if(vertexCount==1) begin
+					if(v0x<primitive2_min[31:16]) primitive2_min[31:16] <= v0x;
+					else if(v0x>primitive2_max[31:16]) primitive2_max[31:16] <= v0x;
+					if(v0y<primitive2_min[15:0]) primitive2_min[15:0] <= v0y;
+					else if(v0y>primitive1_max[15:0]) primitive2_max[15:0] <= v0y;
+					
 					primitive2_v2_buffer[31:16]<=v0x;
 					primitive2_v2_buffer[15:0]<=v0y;
 					vertexCount <= vertexCount + 1'b1;
 				end
 				if(vertexCount==2) begin
+					if(v0x<primitive2_min[31:16]) primitive2_min[31:16] <= v0x;
+					else if(v0x>primitive2_max[31:16]) primitive2_max[31:16] <= v0x;
+					if(v0y<primitive2_min[15:0]) primitive2_min[15:0] <= v0y;
+					else if(v0y>primitive1_max[15:0]) primitive2_max[15:0] <= v0y;
+					
 					primitive2_v0_buffer[31:16]<=v0x;
 					primitive2_v0_buffer[15:0]<=v0y;
 					vertexCount <= vertexCount + 1'b1;
 				end
 				if(vertexCount==3)begin 
+					if(v0x<primitive2_min[31:16]) primitive2_min[31:16] <= v0x;
+					else if(v0x>primitive2_max[31:16]) primitive2_max[31:16] <= v0x;
+					if(v0y<primitive2_min[15:0]) primitive2_min[15:0] <= v0y;
+					else if(v0y>primitive1_max[15:0]) primitive2_max[15:0] <= v0y;
+					
 				  if(primitive2_type == `RECTANGLE) begin
 					  primitive2_v3_buffer[31:16]<=v0x;
 					  primitive2_v3_buffer[15:0]<=v0y;
@@ -260,6 +348,14 @@ input iRST_N;
 		   end
 		end
 		
+		rastCycle1 <= !stall & draw_reg;
+		rastCycle2 <= rastCycle1;
+		rastCycle3 <= rastCycle2;
+		rastCycle4 <= rastCycle3;
+		if(rastCycle4==1'b1) rastContinue <= 1'b1;
+		else if(rastContinue==1'b1 && rastDone==1'b0) rastContinue <= 1'b1;
+		else rastContinue <=1'b0;
+		
 		
 		
 		//if(counter==2) vert0Vector[63:32] <= 32'h00800080;
@@ -268,18 +364,6 @@ input iRST_N;
 		//if(counter>2) NewVertex <= 1'b0;
 		//else NewVertex <=1'b1;
 		
-		
-		rastCycle1 <= (~stall) & draw_reg;
-		//if(counter==1)rastCycle1<=1'b1;
-		//else 
-	  //if(counter==16'd6)rastCycle1<=1'b1;
-		//else rastCycle1<=1'b0;
-		rastCycle2 <= rastCycle1;
-		rastCycle3 <= rastCycle2;
-		rastCycle4 <= rastCycle3;
-		if(rastCycle4==1'b1) rastContinue <= 1'b1;
-		else if(rastContinue==1'b1 && rastDone==1'b0) rastContinue <= 1'b1;
-		else rastContinue <=1'b0;
 		  
 		//control signals for muxes. v0 is hardwired into v0 of the rasterizer
 		//A value of 1 selects the alternate vertex for drawing the other half of
@@ -312,6 +396,7 @@ input iRST_N;
 		  end	
 		end
 		end
+	//end
 	end
 	
 	assign v0_in = (current_prim==1'b0) ? primitive1_v0_buffer : primitive2_v0_buffer;
@@ -330,11 +415,11 @@ input iRST_N;
 				
 	//Multi-cycle unit				
 	EdgeRasterizer rasterizer(.clock(iCLK),								// clock - logic here takes multiple cycles
-						.in_sig_start_new_triangle(rastCycle1), 			// control signal to indicate starting new triangle
-						.in_sig_get_boundary_coords(rastCycle2), 			// control signal to indicate should get bounding box coordinates of triangle
-						.in_sig_form_edges(rastCycle3), 						// control signal to indicate should form initial edge function values
-						.in_sig_pixel_loop_setup(rastCycle4),				// control signal to indicate should setup for rasterization loop over pixels
-						.in_sig_rasterize_pixels(rastContinue), 			// control signal to indicate actual rasterization computation should occur
+						.in_sig_start_new_triangle(rast1), 			// control signal to indicate starting new triangle
+						.in_sig_get_boundary_coords(rast2), 			// control signal to indicate should get bounding box coordinates of triangle
+						.in_sig_form_edges(rast3), 						// control signal to indicate should form initial edge function values
+						.in_sig_pixel_loop_setup(rast4),				// control signal to indicate should setup for rasterization loop over pixels
+						.in_sig_rasterize_pixels(rastCont), 			// control signal to indicate actual rasterization computation should occur
 						.in_v0_screen_x(v0_in[31:16]),
 						.in_v0_screen_y(v0_in[15:0]),	   // x, y coordinates of vertex 0
 						.in_v1_screen_x(v1_in[31:16]), 
@@ -359,15 +444,16 @@ input iRST_N;
 	sevenSegNum sseg0(.NUM(v0_buffer[11:8]),.DISP(HEX2));
 	sevenSegNum sseg1(.NUM(v0_buffer[15:12]),.DISP(HEX3));*/
 	
+	
 	always@(posedge iCLK or posedge reset)
 begin
 	if(reset)
 	begin
-		colInd		<=	0;
+		colInd		<=	blanked1 ? primitive2_min[15:0] : primitive1_min[15:0];
 	end
 	else if (!iVIDEO_ON && blankDone==1'b0)
 	begin
-		if( colInd < 639 )
+		if( colInd < ( blanked1 ? primitive2_max[15:0] : primitive1_max[15:0] ) )
 		colInd	<=	colInd+1;
 		else
 		colInd	<=	0;
@@ -378,13 +464,13 @@ always@(posedge iCLK or posedge reset)
 begin
 	if(reset)
 	begin
-		rowInd		<=	0;
+		rowInd		<=	blanked1 ? primitive2_min[31:16] : primitive1_min[31:16];
 	end
 	else if (!iVIDEO_ON && blankDone==1'b0)
 	begin
 		if(colInd==0)
 		begin
-			if( rowInd < 399 )
+			if( rowInd < ( blanked1 ? primitive2_max[31:16] : primitive1_max[31:16] ))
 			rowInd	<=	rowInd+1;
 			else
 			rowInd	<=	0;
