@@ -31,14 +31,14 @@
 
 `define IDENTITYMATRIX	255'h0001000000000000000000010000000000000000000100000000000000000001
 
-module ID(CLK,Instruction,RESET,Stall,Vertex,VertexOp,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop, NewVertex,NewColor);
+module ID(CLK,Instruction,RESET,Stall,Vertex,VertexOp,StartPrimitive,PrimitiveType,EndPrimitive,Draw,PC, PC_Out, Loop, NewColor);
 input CLK,RESET,Stall;
 input[15:0] PC;
 output[15:0] PC_Out;
 output Loop;
 input[31:0] Instruction;
 output reg[63:0] Vertex; //Assuming X=Vertex[15:0], Y=Vertex[31:16]
-output reg StartPrimitive,EndPrimitive,Draw,NewVertex,NewColor;
+output reg StartPrimitive,EndPrimitive,Draw,NewColor;
 output reg[3:0] PrimitiveType;
 output reg[2:0] VertexOp;
 reg[3:0] PrimitiveTypeDelay;
@@ -59,33 +59,32 @@ initial begin
 	StateMatrix = `IDENTITYMATRIX;
 end*/
 
-wire Vec_WEnable,Int_WEnable,VComp_WEnable,FP_WEnable, LP_WEnable;
+wire Vec_WEnable,Int_WEnable,VComp_WEnable,/*FP_WEnable, */LP_WEnable;
 wire[1:0] idx;
 wire[4:0] op;
 wire[63:0] Vec_DR_Val, Vec_SR1_Val;
 wire[5:0] Vec_DR_Num, Vec_SR1_Num;
-wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val, FP_DR_Val, FP_SR1_Val, FP_SR2_Val, LP_STR_Val;
-wire[3:0] Int_DR_Num, Int_SR1_Num, Int_SR2_Num, FP_DR_Num, FP_SR1_Num, FP_SR2_Num;
+wire[15:0] Int_DR_Val, Int_SR1_Val, Int_SR2_Val, VComp_Val;//, FP_DR_Val, FP_SR1_Val, FP_SR2_Val, LP_STR_Val;
+wire[3:0] Int_DR_Num, Int_SR1_Num, Int_SR2_Num;//, FP_DR_Num, FP_SR1_Num, FP_SR2_Num;
 wire[15:0] Immediate;
 //wire[15:0] Cosine_Result, Sine_Result;
 
 assign Vec_DR_Num = Instruction[21:16];
 assign Vec_SR1_Num = (op == `SETVERTEX || op == `COLOR || op == `ROTATE || op == `TRANSLATE || op == `SCALE) ? Instruction[21:16] : Instruction[11:8];
 
-assign Int_DR_Num = (op == `MOV) ? Int_SR1_Num : Instruction[23:20];
+assign Int_DR_Num = (op == `MOV || op ==`MOVI || op==`MOVI_F) ? Int_SR1_Num : Instruction[23:20];
 assign Int_SR1_Num = Instruction[19:16];
 assign Int_SR2_Num = Instruction[11:8];
 
-assign FP_DR_Num = Instruction[23:20];
-assign FP_SR1_Num = Int_SR1_Num;
-assign FP_SR2_Num = Int_SR2_Num;
+//assign FP_DR_Num = (op == `MOVI_F) ? FP_SR1_Num : Instruction[23:20];
+//assign FP_SR1_Num = Int_SR1_Num;
+//assign FP_SR2_Num = Int_SR2_Num;
 
 reg [15:0] LP_Count, LP_Start;
 
-
+regfile int_regs(.CLK(CLK),.DR_NUM(Int_DR_Num),.DR_VAL(Int_DR_Val),.SRC1_NUM(Int_SR1_Num),.SRC1_VAL(Int_SR1_Val),.SRC2_NUM(Int_SR2_Num),.SRC2_VAL(Int_SR2_Val),.RESET(RESET),.WENABLE(Int_WEnable));
 vector_regfile #(.REG_WIDTH(64),.REG_COUNT(64),.REG_NUM_WIDTH(6)) vector_regs(.CLK(CLK),.DR_NUM(Vec_DR_Num),.DR_VAL(Vec_DR_Val),.SRC1_NUM(Vec_SR1_Num),.SRC1_VAL(Vec_SR1_Val),.RESET(RESET),.WENABLE(Vec_WEnable),.COMP_WENABLE(VComp_WEnable),.IDX(idx),.COMP_VAL(VComp_Val));
-regfile #(.REG_WIDTH(16),.REG_COUNT(8),.REG_NUM_WIDTH(4)) int_regs(.CLK(CLK),.DR_NUM(Int_DR_Num),.DR_VAL(Int_DR_Val),.SRC1_NUM(Int_SR1_Num),.SRC1_VAL(Int_SR1_Val),.SRC2_NUM(Int_SR2_Num),.SRC2_VAL(Int_SR2_Val),.RESET(RESET),.WENABLE(Int_WEnable));
-regfile #(.REG_WIDTH(16),.REG_COUNT(8),.REG_NUM_WIDTH(4)) fp_regs(.CLK(CLK),.DR_NUM(FP_DR_Num),.DR_VAL(FP_DR_Val),.SRC1_NUM(FP_SR1_Num),.SRC1_VAL(FP_SR1_Val),.SRC2_NUM(FP_SR2_Num),.SRC2_VAL(FP_SR2_Val),.RESET(RESET),.WENABLE(FP_WEnable));
+//regfile #(.REG_WIDTH(16),.REG_COUNT(8),.REG_NUM_WIDTH(4)) fp_regs(.CLK(CLK),.DR_NUM(FP_DR_Num),.DR_VAL(FP_DR_Val),.SRC1_NUM(FP_SR1_Num),.SRC1_VAL(FP_SR1_Val),.SRC2_NUM(FP_SR2_Num),.SRC2_VAL(FP_SR2_Val),.RESET(RESET),.WENABLE(FP_WEnable));
 
 //cosine_LUT Cosine(.INVAL(Vec_SR1_Val[15:0]),.OUTVAL(Cosine_Result));
 //sine_LUT Sine(.INVAL(Vec_SR1_Val[15:0]),.OUTVAL(Sine_Result));
@@ -125,36 +124,41 @@ assign op = (Instruction[31:24] == 8'b00000000) ? `ADD_D :
 			(Instruction[31:24] == 8'b11010001) ? `LOOPCOUNT :
 			`INVALID;
 
-assign Int_DR_Val = (op == `ADD_D) ? Int_SR1_Val + Int_SR2_Val :
-					(op == `SUB_D) ? Int_SR1_Val - Int_SR2_Val :
-					(op == `ADDI_D) ? Int_SR1_Val + Immediate :
-					(op == `SUBI_D) ? Int_SR1_Val - Immediate :
+assign Int_DR_Val = (op == `ADD_D || op == `ADD_F) ? Int_SR1_Val + Int_SR2_Val :
+					(op == `SUB_D || op == `SUB_F) ? Int_SR1_Val - Int_SR2_Val :
+					(op == `ADDI_D || op == `ADDI_F) ? Int_SR1_Val + Immediate :
+					(op == `SUBI_D || op == `SUBI_F) ? Int_SR1_Val - Immediate :
 					(op == `MOV) ? Int_SR2_Val :
-					(op == `MOVI) ? Immediate :
-					16'hXXXX;
+					(op == `MOVI || op == `MOVI_F) ? Immediate :
+					16'h0000;
 
-assign Int_WEnable = (op == `ADD_D || op == `SUB_D || op == `ADDI_D || op == `SUBI_D || op == `MOV || op == `MOVI) ? 1'b1 : 1'b0;
+assign Int_WEnable = (op == `ADD_D || op == `SUB_D ||
+					  op == `ADDI_D || op == `SUBI_D ||
+					  op == `MOV || op == `MOVI ||
+					  op ==`ADD_F || op == `SUB_F ||
+					  op == `ADDI_F || op == `SUBI_F ||
+					  op == `MOVI_F) ? 1'b1 : 1'b0;
 
-assign FP_DR_Val = (op ==`ADD_F) ? FP_SR1_Val + FP_SR2_Val :
+/*assign FP_DR_Val = (op ==`ADD_F) ? FP_SR1_Val + FP_SR2_Val :
 				   (op ==`SUB_F) ? FP_SR1_Val - FP_SR2_Val :
 				   (op ==`ADDI_F) ? FP_SR1_Val + Immediate :
 				   (op ==`SUBI_F) ? FP_SR1_Val - Immediate :
 				   (op ==`MOVI_F) ? Immediate :
-				   16'hXXXX;
-
-assign FP_WEnable = (op == `ADD_F || op == `SUB_F || op == `ADDI_F || op == `SUBI_F || op == `MOVI_F) ? 1'b1 : 1'b0;
+				   16'h0000;
+*/
+//assign FP_WEnable = (op == `ADD_F || op == `SUB_F || op == `ADDI_F || op == `SUBI_F || op == `MOVI_F) ? 1'b1 : 1'b0;
 			
 assign Vec_WEnable = (op == `VMOV || op ==`VMOVI) ? 1'b1 : 1'b0;
 
 assign Vec_DR_Val = (op == `VMOV) ? Vec_SR1_Val : 
 					(op == `VMOVI) ? {Immediate, Immediate, Immediate, Immediate} :
-					64'hXXXXXXXXXXXXXXXX;
+					64'h0000000000000000;
 
 assign VComp_WEnable = (op == `VCOMPMOV || op == `VCOMPMOVI) ? 1'b1 : 1'b0;
 
-assign VComp_Val = (op == `VCOMPMOV) ? Int_SR1_Val : 
+assign VComp_Val = (op == `VCOMPMOV) ? Int_SR2_Val : 
 				   (op == `VCOMPMOVI) ? Immediate :
-				   16'hXXXX;
+				   16'h0000;
 				   
 assign PC_Out = (op == `STARTLOOP) ? LP_Start : 16'hXXXX;
 assign Loop = (op == `ENDLOOP) ? 1'b1 : 1'b0;
@@ -190,8 +194,8 @@ always @(posedge CLK or posedge RESET) begin
 		VertexOp <= 3'b000;
 		end
 		else begin
-      Vertex <= 64'hXXXXXXXXXXXXXXXX;
-      NewVertex <= 1'b0;
+      //Vertex <= 64'hXXXXXXXXXXXXXXXX;
+      //NewVertex <= 1'b0;
 		end
 		
 		/*
@@ -300,10 +304,22 @@ module vector_regfile(DR_NUM,DR_VAL,SRC1_NUM,SRC1_VAL,CLK,WENABLE,RESET,COMP_WEN
 	input[1:0] IDX;
 	input CLK,WENABLE,RESET,COMP_WENABLE;
 	output[(REG_WIDTH-1):0] SRC1_VAL;
-	reg[(REG_WIDTH-1):0] register_file[(REG_COUNT-1):0];
+	reg[(REG_WIDTH-1):0] register_file[0:(REG_COUNT-1)];
+	wire[63:0] dest_reg,final_val;
 	
 	assign SRC1_VAL = register_file[SRC1_NUM];
+	assign dest_reg = register_file[DR_NUM];
+	assign final_val = {(IDX == 2'b11) ? COMP_VAL : dest_reg[63:48],
+						(IDX == 2'b10) ? COMP_VAL : dest_reg[47:32],
+						(IDX == 2'b01) ? COMP_VAL : dest_reg[31:16],
+						(IDX == 2'b00) ? COMP_VAL : dest_reg[15:0]};
+	
 	integer i;
+	initial begin
+		for(i=0; i<REG_COUNT; i=i+1) begin
+			register_file[i] <= 0;
+		end
+	end
 	always @(negedge CLK or posedge RESET) begin
 		if(RESET) begin
 			for(i=0; i<REG_COUNT; i=i+1) begin
@@ -312,33 +328,38 @@ module vector_regfile(DR_NUM,DR_VAL,SRC1_NUM,SRC1_VAL,CLK,WENABLE,RESET,COMP_WEN
 		end
 		else if(WENABLE) register_file[DR_NUM] <= DR_VAL;
 		else if(COMP_WENABLE) begin
-			case(IDX)
+			register_file[DR_NUM] <= final_val;
+			/*case(IDX)
 				2'b00: register_file[DR_NUM][15:0] <= COMP_VAL;
 				2'b01: register_file[DR_NUM][31:16] <= COMP_VAL;
 				2'b10: register_file[DR_NUM][47:32] <= COMP_VAL;
 				2'b11: register_file[DR_NUM][63:48] <= COMP_VAL;
-			endcase
+			endcase*/
 		end
 	end
 endmodule
 
 module regfile(DR_NUM,DR_VAL,SRC1_NUM,SRC1_VAL,SRC2_NUM,SRC2_VAL,CLK,WENABLE,RESET);
-	parameter REG_WIDTH;
-	parameter REG_COUNT;
-	parameter REG_NUM_WIDTH;
-	input[(REG_NUM_WIDTH-1):0] DR_NUM,SRC1_NUM,SRC2_NUM;
-	input[(REG_WIDTH-1):0] DR_VAL;
+	input[3:0] DR_NUM,SRC1_NUM,SRC2_NUM;
+	input[15:0] DR_VAL;
 	input CLK,WENABLE,RESET;
-	output[(REG_WIDTH-1):0] SRC1_VAL,SRC2_VAL;
-	reg[(REG_WIDTH-1):0] register_file[(REG_COUNT-1):0];
+	output[15:0] SRC1_VAL,SRC2_VAL;
+	reg[15:0] register_file[0:15];
 	
 	assign SRC1_VAL = register_file[SRC1_NUM];
 	assign SRC2_VAL = register_file[SRC2_NUM];
+	
+	initial begin
+		for(i=0; i<16; i=i+1) begin
+			register_file[i] <= 0;
+		end
+	end
+	
 	integer i;
 	always @(negedge CLK or posedge RESET) begin
 		if(RESET) begin
-			for(i=0; i<REG_COUNT; i=i+1) begin
-				register_file[i] = 0;
+			for(i=0; i<8; i=i+1) begin
+				register_file[i] <= 0;
 			end
 		end
 		else if(WENABLE) register_file[DR_NUM] <= DR_VAL;
