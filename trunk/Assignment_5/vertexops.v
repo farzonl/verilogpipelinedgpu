@@ -64,43 +64,49 @@ if(~stall) begin
 	
 	/*
 		Translate:
-		[ 1 0 0 sr1[31:16] ] [ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ]
-		[ 0 1 0 sr1[47:32] ] [ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ]
-		[ 0 0 1 0          ] [ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ]
-		[ 0 0 0 1          ] [ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ]
+		[ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ] [ 1 0 0 sr1[31:16] ]
+		[ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ] [ 0 1 0 sr1[47:32] ]
+		[ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ] [ 0 0 1 0          ]
+		[ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ] [ 0 0 0 1          ]
 		*/
 	if(op == `TRANSLATE_OP) begin
-		//StateMatrix[63:48] <= StateMatrix[63:48] + vectorIn[31:16];
-		//StateMatrix[127:112] <= StateMatrix[127:112] + vectorIn[47:32];
-		StateMatrix <= {StateMatrix[255:128],SM24 + Y_in,StateMatrix[111:64],SM14 + X_in,StateMatrix[47:0]};
+		StateMatrix[63:48] <= ((SM11 * X_in + 64) >>> 7) + ((SM12 * Y_in + 64) >>> 7) + SM14;
+		StateMatrix[127:112] <= ((SM21 * X_in + 64) >>> 7) + ((SM22 * Y_in + 64) >>> 7) + SM24;
+		//StateMatrix <= {StateMatrix[255:128],SM24 + Y_in,StateMatrix[111:64],SM14 + X_in,StateMatrix[47:0]};
 	end
 	
 	/*
 		Scale:
-		[ sr1[31:16] 0          0 0 ] [ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ]
-		[ 0          sr1[47:32] 0 0 ] [ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ]
-		[ 0          0          1 0 ] [ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ]
-		[ 0          0          0 1 ] [ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ]
+		[ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ] [ sr1[31:16] 0          0 0 ]
+		[ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ] [ 0          sr1[47:32] 0 0 ]
+		[ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ] [ 0          0          1 0 ]
+		[ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ] [ 0          0          0 1 ]
 		*/
 	
 	if(op == `SCALE_OP) begin
 		StateMatrix[15:0] <= (X_in * SM11 + 64) >>> 7;
-		StateMatrix[31:16] <= (X_in * SM12 + 64) >>> 7;
-		StateMatrix[63:48] <= (X_in * SM14 + 64) >>> 7;
-		StateMatrix[79:64] <= (Y_in * SM21 + 64) >>> 7;
+		StateMatrix[31:16] <= (Y_in * SM12 + 64) >>> 7;
+		//StateMatrix[31:16] <= (X_in * SM12 + 64) >>> 7;
+		//StateMatrix[63:48] <= (X_in * SM14 + 64) >>> 7;
+		StateMatrix[79:64] <= (X_in * SM21 + 64) >>> 7;
+		//StateMatrix[79:64] <= (Y_in * SM21 + 64) >>> 7;
 		StateMatrix[95:80] <= (Y_in * SM22 + 64) >>> 7;
-		StateMatrix[127:112] <= (Y_in * SM24 + 64) >>> 7;
+		//StateMatrix[127:112] <= (Y_in * SM24 + 64) >>> 7;
 	end
 	
 	/*
 		Rotate:
-		[ cos(sr1[15:0]) -sin(sr1[15:0]) 0 0 ] [ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ]
-		[ sin(sr1[15:0]) cos(sr1[15:0])  0 0 ] [ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ]
-		[ 0              0               1 0 ] [ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ]
-		[ 0              0               0 1 ] [ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ]
+		[ SM[15:0]    SM[31:16]   SM[47:32]   SM[63:48]   ] [ cos(sr1[15:0]) -sin(sr1[15:0]) 0 0 ]
+		[ SM[79:64]   SM[95:80]   SM[111:96]  SM[127:112] ] [ sin(sr1[15:0]) cos(sr1[15:0])  0 0 ]
+		[ SM[143:128] SM[159:144] SM[175:160] SM[191:176] ] [ 0              0               1 0 ]
+		[ SM[207:192] SM[223:208] SM[239:224] SM[255:240] ] [ 0              0               0 1 ]
 		*/
 	
 	if(op == `ROTATE_OP /*&& vectorIn[63:48] == 16'h0080*/) begin
+			StateMatrix[15:0] <= ((Cosine_Result * SM11 + 64) >>> 7) + ((Sine_Result * SM12 + 64) >>> 7);
+			StateMatrix[31:16] <= ((Cosine_Result * SM12 + 64) >>> 7) - ((Sine_Result * SM11 + 64) >>> 7);
+			StateMatrix[79:64] <= ((Cosine_Result * SM21 + 64) >>> 7) + ((Sine_Result * SM22 + 64) >>> 7);
+			StateMatrix[95:80] <= ((Cosine_Result * SM22 + 64) >>> 7) - ((Sine_Result * SM21 + 64) >>> 7);
 			/*StateMatrix[15:0] <= ((Cosine_Result * SM11 + 64) >>> 7) - ((Sine_Result * SM21 + 64) >>> 7);
 			StateMatrix[31:16] <= ((Cosine_Result * SM12 + 64) >>> 7) - ((Sine_Result * SM22 + 64) >>> 7);
 			StateMatrix[63:48] <= ((Cosine_Result * SM14 + 64) >>> 7) - ((Sine_Result * SM24 + 64) >>> 7);
