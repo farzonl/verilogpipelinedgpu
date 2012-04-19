@@ -29,7 +29,8 @@ input iVGA_BLANK;
 	//reg [63:0] vert0Vector;
 	wire [63:0] vert0Vector;
 	
-	reg rastCycle1, rastCycle2, rastCycle3, rastCycle4, rastContinue;
+	reg rastCycle1;
+	reg rastCycle2, rastCycle3, rastCycle4, rastContinue;
 	wire [1:0] v0depth, v1depth, v2depth, pixelDepth;
 	wire [15:0] triangleColor, loop_PC, PC;
 	wire writePixel, rastDone;
@@ -84,7 +85,7 @@ input iVGA_BLANK;
 	reg latch, primRead, blankDone, prim_count;
 
 
-	assign triangleColor = 16'h0FFF;
+	assign triangleColor = current_prim ? 16'h00F0 : 16'h0F0F;
 	assign v0depth = 0;
 	assign v1depth = 0;
 	assign v2depth = 0;
@@ -187,8 +188,10 @@ input iVGA_BLANK;
 	initial primitive2_max = 32'd0;
 	initial primitive2_min = 32'd0;
 	
-	assign stall = /*!iVGA_BLANK |*/ !blankDone | rastCycle1 | rastCycle2 | rastCycle3 | rastCycle4 | rastContinue;
-	
+	assign stall = /*!iVGA_BLANK |*/ !blankDone | rastCycle1 |  rastCycle2 | rastCycle3 | rastCycle4 | rastContinue;
+  /*assign current_prim = ((rastDone & primitive1_drawn & !primitive2_drawn) & 
+                        !(rastDone & primitive2_drawn & primitive1_drawn)) ? 1'b1 : 1'b0;*/
+                        
 				 
 	always @ (posedge iCLK or posedge reset) begin
 	
@@ -203,19 +206,7 @@ input iVGA_BLANK;
 	end else begin
 	
 		if (!iVIDEO_ON /*&& iVGA_BLANK*/) begin 
-	
-		//Set drawn and valid flags to 0. This will be reset later in the code if needed.
-		if(rastDone==1'b1) begin 
-		  if(current_prim==1'b1) begin
-			  primitive2_drawn <= 1'b0;
-			  primitive2_drawn_half <= 1'b0;
-			  primitive2_valid <= 1'b0;
-		  end else begin
-			  primitive1_drawn <= 1'b0;
-			  primitive1_valid <= 1'b0;
-		  end
-		end
-		
+		  		
 		if(StartPrim) begin
 		  prim_count <= prim_count + 1'b1;
 		  if(prim_count==1'b0) primitive1_type <= PrimType;
@@ -242,9 +233,17 @@ input iVGA_BLANK;
 			//blankDone <= 1'b0;
 			resetBlank <= 1'b1;
 			blanked1 <= 1'b0;
+			rast_v1_select <= 1'b0;
+			current_prim <= 1'b0;
 		end
-		else if ( ((primitive2_drawn & primitive2_valid) | !primitive2_valid) &
-					 ((primitive1_drawn & primitive1_valid) | !primitive1_valid) )  draw_reg<=1'b0;
+		else if (primitive2_drawn & primitive1_drawn) begin
+			  draw_reg<=1'b0;
+			  primitive2_drawn <= 1'b0;
+			  primitive2_drawn_half <= 1'b0;
+			  primitive2_valid <= 1'b0;
+			  primitive1_drawn <= 1'b0;
+			  primitive1_valid <= 1'b0;
+		end
 		counter <= counter+1;
 		
 		//delay signal for 1 cycle to allow Converter to do its thing
@@ -367,13 +366,11 @@ input iVGA_BLANK;
 		//if(counter==0) vert0Vector[63:32] <= 32'h00800100;
 		//if(counter>2) NewVertex <= 1'b0;
 		//else NewVertex <=1'b1;
-		
-		
-		rastCycle1 <= (~stall) & draw_reg;
 		//if(counter==1)rastCycle1<=1'b1;
 		//else 
 	  //if(counter==16'd6)rastCycle1<=1'b1;
 		//else rastCycle1<=1'b0;
+		rastCycle1 <= (~stall) & draw_reg;
 		rastCycle2 <= rastCycle1;
 		rastCycle3 <= rastCycle2;
 		rastCycle4 <= rastCycle3;
@@ -384,43 +381,45 @@ input iVGA_BLANK;
 		//control signals for muxes. v0 is hardwired into v0 of the rasterizer
 		//A value of 1 selects the alternate vertex for drawing the other half of
 		// a restangle (v0,v2,v3). 0 selects (v0,v1,v2).
-		
-		if(rastDone==1'b1 && primitive2_valid==1'b1 && primitive1_drawn==1'b1 && primitive2_drawn==1'b0) current_prim <= 1'b1;
-	  else if(rastDone==1'b1 && primitive2_drawn==1'b1 && primitive1_drawn==1'b1) current_prim <= 1'b0;
-
+		if(rastDone==1'b1 && primitive1_drawn==1'b1 && primitive2_drawn==1'b0) begin
+			current_prim <= 1'b1;
+	  end else if(rastDone==1'b1 && primitive1_drawn==1'b0)  current_prim <= 1'b0;
+    
 		//rastDone will be asserted after initial 1/2 of prim1 is drawn.
 		if(rastDone==1'b1 && primitive1_drawn==1'b0 && primitive1_valid==1'b1) begin
 			 if(primitive1_type==`RECTANGLE) begin
 				 //select alternate set of vertices
 				 rast_v1_select <= 1'b1;
-				 rast_v2_select <= 1'b1;
 			 end else begin
+			   rast_v1_select <= 1'b0;
 				 primitive1_drawn <= 1'b1;
+				 primitive1_valid <= 1'b0;
 			 end	
 	   //This will not automatically draw the 1st half of the triangle, as it happens after primitive 1.
 		end else if(rastDone==1'b1 && primitive2_drawn==1'b0 && primitive2_valid==1'b1)
 		  if(primitive2_type==`RECTANGLE && primitive2_drawn_half==1'b0) begin
 		    //select alternate set of vertices
 		    rast_v1_select <= 1'b1;
-		    rast_v2_select <= 1'b1;
+		    //rast_v2_select <= 1'b1;
 			 primitive2_drawn_half <= 1'b1;
 		  end else begin
-			 //If not a rectangle, draw using first 3 vertices.
+			 //If not a rectangle, or 1st half of rectangle is drawn, draw using first 3 vertices.
 		    rast_v1_select <= 1'b0;
-		    rast_v2_select <= 1'b0; 
 		    primitive2_drawn <= 1'b1;
+		    primitive2_valid <= 1'b0;
 		  end	
 		end
 		end
 	end
 	
-	assign v0_in = (current_prim==1'b0) ? primitive1_v0_buffer : primitive2_v0_buffer;
+	assign v0_in = (current_prim==1'b0) ? primitive1_v0_buffer
+									:  ((rast_v1_select==1'b0) ? primitive2_v0_buffer : primitive2_v1_buffer );
 	
 	assign v1_in = (current_prim==1'b0) ? ( (rast_v1_select==1'b0) ? primitive1_v1_buffer : primitive1_v2_buffer )
-	                        : ( (rast_v1_select==1'b0) ? primitive2_v1_buffer : primitive2_v2_buffer );
+	                        : ( (rast_v1_select==1'b0) ? primitive2_v1_buffer : primitive2_v0_buffer );
 	                        
-	assign v2_in = (current_prim==1'b0) ? ( (rast_v2_select==1'b0) ? primitive1_v2_buffer : primitive1_v3_buffer )
-	                        : ( (rast_v2_select==1'b0) ? primitive2_v2_buffer : primitive2_v3_buffer );
+	assign v2_in = (current_prim==1'b0) ? ( (rast_v1_select==1'b0) ? primitive1_v2_buffer : primitive1_v3_buffer )
+	                        : ( (rast_v1_select==1'b0) ? primitive2_v2_buffer : primitive2_v3_buffer );
 	
 	assign v0t_buffer = 32'h00640019;
 	assign v1t_buffer = 32'h0067001d;
@@ -522,6 +521,9 @@ end
 
 
 endmodule
+
+
+
 
 
 
