@@ -43,9 +43,9 @@ vcompmovi v9 2 0.0f		23890000
 vcompmovi v9 3 -1.0f	23C9FF80
 rotate v9				52090000
 startprimitive 7		91070000
-vcompmovi v10 0 0		234A0000
-vcompmovi v10 1 255		238A00FF
-vcompmovi v10 2 0		23CA0000
+vcompmovi v10 0 0		230A0000
+vcompmovi v10 1 255		234A00FF
+vcompmovi v10 2 0		238A0000
 color v10				4A0A0000
 vcompmovi v11 1 0.0f	234B0000
 vcompmovi v11 2 0.0f	238B0000
