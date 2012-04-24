@@ -435,8 +435,7 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 	assign out_sig_rasterize_done = out_sig_rasterize_done_reg;
 	assign out_sig_rasterize_write_pixel = out_sig_rasterize_write_pixel_reg;
 	
-	//assign out_pixel_x = out_pixel_x_reg;
-	assign out_pixel_x = out_pixel_color_b_reg;
+	assign out_pixel_x = out_pixel_x_reg;
 	assign out_pixel_y = out_pixel_y_reg;
 	// convert depth value to appropriate 2-bit value (convert from fixed to int and round)
 	assign out_pixel_depth = (out_pixel_depth_reg >= 16'b101000000) ? 2'b11 :	// greater than/equal to max, so output max
