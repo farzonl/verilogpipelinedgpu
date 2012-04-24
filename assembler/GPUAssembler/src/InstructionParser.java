@@ -180,7 +180,7 @@ public class InstructionParser
 		String vr1_str = getVecRegNum8bit(tokens[1]);
 		String vr2_str = getVecRegNum8bit(tokens[2]);
 		
-		return (vr1_str + vr2_str);
+		return (vr1_str + vr2_str+"00");
 	}
 
 	private static String parse_SR1_SR2(String[] tokens) 

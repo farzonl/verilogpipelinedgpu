@@ -74,7 +74,6 @@ public class GPUAssembler
 	{
 		String inputFile = args[0];
 		String outputFile = args[1];
-		
 		GPUAssembler assembler = new GPUAssembler(inputFile, outputFile);
 		
 		assembler.parseProgram();
