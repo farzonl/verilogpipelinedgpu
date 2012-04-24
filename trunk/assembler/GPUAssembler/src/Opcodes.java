@@ -62,6 +62,7 @@ public class Opcodes
 		opcodeMap.put("sub.d", SUB_D);
 		opcodeMap.put("subi.d", SUBI_D);
 		opcodeMap.put("sub.f", SUB_F);
+		opcodeMap.put("subi.f", SUBI_F);
 		opcodeMap.put("mov", MOV);
 		opcodeMap.put("movi", MOVI);
 		opcodeMap.put("movi.f", MOVI_F);
