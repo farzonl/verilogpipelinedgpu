@@ -27,21 +27,30 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 	
 	// test input wires for rasterization
 	// 3 vertices in screen coordinates
-	wire [15:0] v0_screen_x = 16'd100;	//h64
-	wire [15:0] v0_screen_y = 16'd25;	//h19
-	wire [15:0] v1_screen_x = 16'd103;	//h67
-	wire [15:0] v1_screen_y = 16'd29;	//h1D
-	wire [15:0] v2_screen_x = 16'd97;	//h61
-	wire [15:0] v2_screen_y = 16'd29;	//h1D
+	//wire [15:0] v0_screen_x = 16'd100;	//h64
+	//wire [15:0] v0_screen_y = 16'd25;	//h19
+	//wire [15:0] v1_screen_x = 16'd103;	//h67
+	//wire [15:0] v1_screen_y = 16'd29;	//h1D
+	//wire [15:0] v2_screen_x = 16'd97;	//h61
+	//wire [15:0] v2_screen_y = 16'd29;	//h1D
+	wire [15:0] v0_screen_x = 16'd256;	//h64
+	wire [15:0] v0_screen_y = 16'd160;	//h19
+	wire [15:0] v1_screen_x = 16'd384;	//h67
+	wire [15:0] v1_screen_y = 16'd160;	//h1D
+	wire [15:0] v2_screen_x = 16'd320;	//h61
+	wire [15:0] v2_screen_y = 16'd240;	//h1D
 	// 3 vertex depth values
 	wire [1:0] v0_depth = 2'b00;	//00
 	wire [1:0] v1_depth = 2'b11;	//11
 	wire [1:0] v2_depth = 2'b10;	//10
 	// color
 	//wire [15:0] color = 16'hFF00;	// ARGB
-	wire [15:0] v0_color = 16'hFF00;	// red
-	wire [15:0] v1_color = 16'hF0F0;	// green
-	wire [15:0] v2_color = 16'hF00F;	// blue
+	//wire [15:0] v0_color = 16'hFF00;	// red
+	//wire [15:0] v1_color = 16'hF0F0;	// green
+	//wire [15:0] v2_color = 16'hF00F;	// blue
+	wire [15:0] v0_color = 16'hF00F;	// blue
+	wire [15:0] v1_color = 16'hFF00;	// red
+	wire [15:0] v2_color = 16'hF0F0;	// green
 	
 	// test output wires for rasterization
 	wire [15:0] raster_out_pixel_x;
@@ -83,7 +92,7 @@ module raster_tri_test(CLOCK_50, KEY, SW, LEDG, LEDR, HEX0, HEX1, HEX2, HEX3);
 	sevenSegNum display0(.DISP(HEX0), .NUM(raster_out_pixel_color[3:0]));
 	sevenSegNum display1(.DISP(HEX1), .NUM(raster_out_pixel_color[7:4]));
 	sevenSegNum display2(.DISP(HEX2), .NUM(raster_out_pixel_color[11:8]));
-	sevenSegNum display3(.DISP(HEX3), .NUM(raster_out_pixel_color[15:12]));
+	sevenSegNum display3(.DISP(HEX3), .NUM(raster_out_pixel_x[3:0]));
 	
 	assign LEDG[1:0] = raster_out_pixel_depth;
 	

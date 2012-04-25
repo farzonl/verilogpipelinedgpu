@@ -151,28 +151,36 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 	reg [15:0] min_x, min_y;
 	reg [15:0] max_x, max_y;
 	
-	reg [15:0] triangle_area;
-	initial triangle_area = 16'b0;
+	wire [15:0] triangle_area;
+	//initial triangle_area = 16'b0;
 	
 	reg [15:0] v0_depth_16, v1_depth_16, v2_depth_16;
 	
 	// color registers - we can get better interpolation with 16-bit values
 	// instead of 4-bit int values
-	reg [15:0] v0_color_r_16, v0_color_g_16, v0_color_b_16;
-	reg [15:0] v1_color_r_16, v1_color_g_16, v1_color_b_16;
-	reg [15:0] v2_color_r_16, v2_color_g_16, v2_color_b_16;
+	reg signed [15:0] v0_color_r_16, v0_color_g_16, v0_color_b_16;
+	reg signed [15:0] v1_color_r_16, v1_color_g_16, v1_color_b_16;
+	reg signed [15:0] v2_color_r_16, v2_color_g_16, v2_color_b_16;
+	
+	assign triangle_area = 	(start_v0_screen_x * start_v1_screen_y) +
+								(start_v1_screen_x * start_v2_screen_y) +
+								(start_v2_screen_x * start_v0_screen_y) -
+								(start_v0_screen_x * start_v2_screen_y) -
+								(start_v1_screen_x * start_v0_screen_y) - 
+								(start_v2_screen_x * start_v1_screen_y);
+	
 	
 	always @(posedge clock) begin
 		if (in_sig_get_boundary_coords) begin
 			
 			// v0 is min x
-			if (start_v0_screen_x < start_v1_screen_x &&
-				start_v0_screen_x < start_v2_screen_x) begin
+			if (start_v0_screen_x <= start_v1_screen_x &&
+				start_v0_screen_x <= start_v2_screen_x) begin
 				min_x <= start_v0_screen_x;
 			end
 			// v1 is min x
-			else if (start_v1_screen_x < start_v0_screen_x &&
-					start_v1_screen_x < start_v2_screen_x) begin
+			else if (start_v1_screen_x <= start_v0_screen_x &&
+					start_v1_screen_x <= start_v2_screen_x) begin
 				min_x <= start_v1_screen_x;	
 			end
 			// v2 is min x
@@ -181,13 +189,13 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 			end
 			
 			// v0 is min y
-			if (start_v0_screen_y < start_v1_screen_y &&
-				start_v0_screen_y < start_v2_screen_y) begin
+			if (start_v0_screen_y <= start_v1_screen_y &&
+				start_v0_screen_y <= start_v2_screen_y) begin
 				min_y <= start_v0_screen_y;
 			end
 			// v1 is min y
-			else if (start_v1_screen_y < start_v0_screen_y &&
-				start_v1_screen_y < start_v2_screen_y) begin
+			else if (start_v1_screen_y <= start_v0_screen_y &&
+				start_v1_screen_y <= start_v2_screen_y) begin
 				min_y <= start_v1_screen_y;
 			end
 			// v2 is min y
@@ -196,13 +204,13 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 			end
 			
 			// v0 is max x
-			if (start_v0_screen_x > start_v1_screen_x &&
-				start_v0_screen_x > start_v2_screen_x) begin
+			if (start_v0_screen_x >= start_v1_screen_x &&
+				start_v0_screen_x >= start_v2_screen_x) begin
 				max_x <= start_v0_screen_x;
 			end
 			// v1 is max x
-			else if (start_v1_screen_x > start_v0_screen_x &&
-					start_v1_screen_x > start_v2_screen_x) begin
+			else if (start_v1_screen_x >= start_v0_screen_x &&
+					start_v1_screen_x >= start_v2_screen_x) begin
 				max_x <= start_v1_screen_x;
 			end
 			// v2 is max x
@@ -211,13 +219,13 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 			end
 			
 			// v0 is max y
-			if (start_v0_screen_y > start_v1_screen_y &&
-				start_v0_screen_y > start_v2_screen_y) begin
+			if (start_v0_screen_y >= start_v1_screen_y &&
+				start_v0_screen_y >= start_v2_screen_y) begin
 				max_y <= start_v0_screen_y;
 			end
 			// v1 is max y
-			else if (start_v1_screen_y > start_v0_screen_y &&
-					start_v1_screen_y > start_v2_screen_y) begin
+			else if (start_v1_screen_y >= start_v0_screen_y &&
+					start_v1_screen_y >= start_v2_screen_y) begin
 				max_y <= start_v1_screen_y;
 			end
 			// v2 is max y
@@ -228,13 +236,13 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 			// calculate triangle area
 			// this is actually twice the area since that
 			// is what is needed for conversion-to-barycentric later
-			triangle_area <= 	(start_v0_screen_x * start_v1_screen_y) +
+			/*triangle_area <= 	(start_v0_screen_x * start_v1_screen_y) +
 								(start_v1_screen_x * start_v2_screen_y) +
 								(start_v2_screen_x * start_v0_screen_y) -
 								(start_v0_screen_x * start_v2_screen_y) -
 								(start_v1_screen_x * start_v0_screen_y) - 
 								(start_v2_screen_x * start_v1_screen_y);
-											
+			*/								
 			// calculate "larger" z-values as 16-bit numbers instead of 2-bit
 			// this is done to make interpolation less likely to be error prone
 			v0_depth_16 <= 16'b0 + (start_v0_depth << 7);
@@ -265,12 +273,16 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 	//
 	// Also computes inverse (reciprocal) of triangle area, 
 	// which is needed for z-value interpolation
-	reg [15:0] edge0_a, edge0_b, edge0_c;
-	reg [15:0] edge1_a, edge1_b, edge1_c;
-	reg [15:0] edge2_a, edge2_b, edge2_c;
+	reg signed [15:0] edge0_a, edge0_b, edge0_c;
+	reg signed [15:0] edge1_a, edge1_b, edge1_c;
+	reg signed [15:0] edge2_a, edge2_b, edge2_c;
 	
-	reg [15:0] inverse_triangle_area;
-	initial inverse_triangle_area = 16'b0;
+	reg signed [31:0] inverse_triangle_area;
+	initial inverse_triangle_area = 32'b0;
+	wire [31:0] inverse_area_wire;
+	
+	
+	fast_divide fd(.denom(triangle_area),.numer(32'b1 << 16),.quotient(inverse_area_wire),.clock(clock));
 	
 	always @(posedge clock) begin
 		if (in_sig_form_edges) begin
@@ -294,7 +306,8 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 						start_v1_screen_x * start_v0_screen_y;
 						
 			// conversion to fixed-point
-			inverse_triangle_area <= (1'b1 << 7) / (triangle_area);
+			inverse_triangle_area <= inverse_area_wire;
+			//inverse_triangle_area <= (1'b1 << 7) / (triangle_area);
 						
 		end
 	end
@@ -306,8 +319,8 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 	// could cover the entire triangle (for simplicity's sake)
 	// We start by assigning the min x, y values as
 	// start values for the iterators (like a for-loop setup)
-	reg [15:0] x_pixel_iter;
-	reg [15:0] y_pixel_iter;
+	reg signed [15:0] x_pixel_iter;
+	reg signed [15:0] y_pixel_iter;
 	
 	// Cycle 5 until end
 	// Actually loop through pixels to calculate colors.
@@ -316,11 +329,13 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 	// assigned to final wires.
 	reg [15:0] out_pixel_x_reg, out_pixel_y_reg;
 	reg [15:0] out_pixel_depth_reg;	// 16-bit to hold higher-resolution z-value; only lowest 2 bits (after reconverting from fixed to int) sent to output wires
-	reg [15:0] out_pixel_color_r_reg;	// higher resolution red color value for interpolation
-	reg [15:0] out_pixel_color_g_reg;	// higher resolution green color value for interpolation
-	reg [15:0] out_pixel_color_b_reg;	// higher resolution blue color value for interpolation
+	reg [31:0] out_pixel_color_r_reg;	// higher resolution red color value for interpolation
+	reg [31:0] out_pixel_color_g_reg;	// higher resolution green color value for interpolation
+	reg [31:0] out_pixel_color_b_reg;	// higher resolution blue color value for interpolation
 	reg [0:0] out_sig_rasterize_write_pixel_reg;	// reg to hold value if current pixel output should be written to screen
 	reg [0:0] out_sig_rasterize_done_reg;	// this reg exists likely due to 1-cycle delay with registers
+	
+	reg signed [31:0] test_reg;
 	
 	always @(posedge clock) begin
 		if (in_sig_pixel_loop_setup) begin
@@ -330,6 +345,14 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 		end
 	
 		if (in_sig_rasterize_pixels) begin
+	
+			test_reg <= (
+										(v1_color_b_16 - v0_color_b_16) * 
+										(
+										(((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) <<< 4)
+										 * inverse_triangle_area) >>> 4)
+										>>> 16
+						);	
 	
 			// compute edge function values - if good, store pixel value for output
 			// check most significant bit to see if negative value (outside) by
@@ -345,56 +368,77 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 				// this is kind of ugly, but to do it in a cleaner way would require
 				// more cycles within the rasterizer (which probably isn't worth it
 				// since we have the current rasterizer working)
-				out_pixel_depth_reg <= v0_depth_16
+				/*out_pixel_depth_reg <= v0_depth_16
 										+
 										(
 										(v1_depth_16 - v0_depth_16) * 
 										((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) * inverse_triangle_area)
-										>> 7)
+										>> 12)
 										+
 										(
 										(v2_depth_16 - v0_depth_16) * 
 										((edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) * inverse_triangle_area)
-										>> 7);	
-										
+										>> 12);	
+				*/						
 				// color interpolation
 				// split up into separate RGB interpolations for correct results
 				// red				
-				out_pixel_color_r_reg <= v0_color_r_16
+				out_pixel_color_r_reg <= v0_color_r_16 
 										+
 										(
 										(v1_color_r_16 - v0_color_r_16) * 
-										((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) * inverse_triangle_area)
-										>> 7)
+										(
+										(((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) <<< 4)
+										 * inverse_triangle_area) >>> 4)
+										>>> 16
+										)
 										+
 										(
 										(v2_color_r_16 - v0_color_r_16) * 
-										((edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) * inverse_triangle_area)
-										>> 7);	
+										(
+										(((edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) <<< 4)
+										 * inverse_triangle_area) >>> 4)
+										>>> 16
+										)
+										;	
 				// green
-				out_pixel_color_g_reg <= v0_color_g_16
+				out_pixel_color_g_reg <= v0_color_g_16 
 										+
 										(
 										(v1_color_g_16 - v0_color_g_16) * 
-										((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) * inverse_triangle_area)
-										>> 7)
+										(
+										(((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) <<< 4)
+										 * inverse_triangle_area) >>> 4)
+										>>> 16
+										)
 										+
 										(
 										(v2_color_g_16 - v0_color_g_16) * 
-										((edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) * inverse_triangle_area)
-										>> 7);	
+										(
+										(((edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) <<< 4)
+										 * inverse_triangle_area) >>> 4)
+										>>> 16
+										)
+										;	
 				// blue
-				out_pixel_color_b_reg <= v0_color_b_16
+				out_pixel_color_b_reg <= v0_color_b_16 
 										+
 										(
 										(v1_color_b_16 - v0_color_b_16) * 
-										((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) * inverse_triangle_area)
-										>> 7)
+										(
+										(((edge1_a * x_pixel_iter + edge1_b * y_pixel_iter + edge1_c) <<< 4)
+										 * inverse_triangle_area) >>> 4)
+										>>> 16
+										)
 										+
 										(
 										(v2_color_b_16 - v0_color_b_16) * 
-										((edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) * inverse_triangle_area)
-										>> 7);	
+										(
+										(((edge2_a * x_pixel_iter + edge2_b * y_pixel_iter + edge2_c) <<< 4)
+										 * inverse_triangle_area) >>> 4)
+										>>> 16
+										)
+										;		
 				
 				out_sig_rasterize_write_pixel_reg <= 1'b1;
 				
@@ -435,6 +479,7 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 	assign out_sig_rasterize_done = out_sig_rasterize_done_reg;
 	assign out_sig_rasterize_write_pixel = out_sig_rasterize_write_pixel_reg;
 	
+	//assign out_pixel_x = test_reg[15:0];
 	assign out_pixel_x = out_pixel_x_reg;
 	assign out_pixel_y = out_pixel_y_reg;
 	// convert depth value to appropriate 2-bit value (convert from fixed to int and round)
@@ -445,13 +490,13 @@ module EdgeRasterizerColorInterp(clock,									// clock - logic here takes mult
 	// convert interpolated colors to proper 4-bit RGB components (similar to depth above)
 	assign out_pixel_color[15:12] = 4'hF;	// just initialize "alpha" to all 1's
 	// red
-	assign out_pixel_color[11:8] = (out_pixel_color_r_reg[4] == 1'b1) ? 4'h0 :
+	assign out_pixel_color[11:8] = //(out_pixel_color_r_reg > 16'hF) ? 4'hF :
 									(out_pixel_color_r_reg[3:0]);
 	// green
-	assign out_pixel_color[7:4] = (out_pixel_color_g_reg[4] == 1'b1) ? 4'h0 :
+	assign out_pixel_color[7:4] = //(out_pixel_color_g_reg > 16'hF) ? 4'hF :
 									(out_pixel_color_g_reg[3:0]);
 	// blue
-	assign out_pixel_color[3:0] = (out_pixel_color_b_reg[4] == 1'b1) ? 4'h0 :
+	assign out_pixel_color[3:0] = //(out_pixel_color_b_reg > 16'hF) ? 4'hF :
 									(out_pixel_color_b_reg[3:0]);
 	
 					
